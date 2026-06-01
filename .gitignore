@@ -1,0 +1,10 @@
+# .gitignore
+.env
+__pycache__/
+*.pyc
+backend/data/cache/
+.streamlit/secrets.toml
+*.egg-info/
+.DS_Store
+venv/
+.venv/
