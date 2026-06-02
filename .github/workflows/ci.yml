@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [dev, main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      
+      - name: Check import structure
+        run: |
+          python -c "from backend.data.fetcher import TICKERS; print('TICKERS OK:', len(TICKERS))"
+          python -c "from backend.models.garch_model import fit_gjr_garch; print('GARCH OK')"
+          python -c "from backend.models.var_calculator import calculate_var_es; print('VaR OK')"
+          python -c "from backend.utils.indicators import calculate_all_indicators; print('Indicators OK')"
+      
+      - name: Docker build check
+        run: docker build -f docker/Dockerfile -t riskguard-test .
