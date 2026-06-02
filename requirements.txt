@@ -5,6 +5,6 @@ scipy==1.13.0
 pandas==2.2.2
 streamlit==1.45.0 #UI 프레임워크
 plotly==5.22.0 #인터랙티브 차트
-anthropic==0.40.0 #챗봇 API 
+google-generativeai==0.1.0 #Gemini API
 python-dotenv==1.0.1
 schedule==1.2.2 #자동계산하기 위함
