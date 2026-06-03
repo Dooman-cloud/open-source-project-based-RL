@@ -268,13 +268,17 @@ if prompt := st.chat_input("리스크 지표에 대해 질문하세요..."):
     with st.chat_message("assistant"):
         with st.spinner("분석 중..."):
             try:
-                import google.generativeai as genai
+                from google import genai
+                from google.genai import types
                 from dotenv import load_dotenv
-                load_dotenv()
-                # .env에서 GEMINI_API_KEY 읽기
 
-                genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-                # Gemini API 설정
+                load_dotenv()
+
+                api_key = os.getenv("GEMINI_API_KEY")
+                if not api_key:
+                    raise RuntimeError("GEMINI_API_KEY가 설정되지 않았습니다. .env 또는 현재 터미널 환경변수를 확인하세요.")
+
+                client = genai.Client(api_key=api_key)
 
                 context = f"""
 당신은 금융 리스크 분석 전문 AI 어시스턴트입니다.
@@ -291,34 +295,29 @@ if prompt := st.chat_input("리스크 지표에 대해 질문하세요..."):
 투자 손실에 대한 책임은 본인에게 있음을 적절히 안내하세요.
                 """
 
-                model = genai.GenerativeModel(
-                    model_name="gemini-1.5-flash",
-                    # 무료 모델
-                    system_instruction=context,
-                    # 현재 분석 데이터 전달
-                )
-
-                # 이전 대화 기록을 Gemini 형식으로 변환
                 history = []
-                for m in st.session_state.messages[:-1]:
-                # 마지막 메시지 제외 (방금 입력한 것)
-                    history.append({
-                        "role": "user" if m["role"] == "user" else "model",
-                        # Gemini는 "assistant" 대신 "model" 사용
-                        "parts": [m["content"]]
-                    })
+                for message in st.session_state.messages[:-1]:
+                    history.append(
+                        {
+                            "role": "user" if message["role"] == "user" else "model",
+                            "parts": [{"text": message["content"]}],
+                        }
+                    )
 
-                chat = model.start_chat(history=history)
-                # 대화 기록 포함해서 채팅 시작
+                contents = history + [{"role": "user", "parts": [{"text": prompt}]}]
 
-                response = chat.send_message(prompt)
-                # 메시지 전송
-
+                response = client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=contents,
+                    config=types.GenerateContentConfig(
+                        system_instruction=context,
+                        temperature=0.4,
+                    ),
+                )
                 reply = response.text
-                # 응답 텍스트 추출
 
             except Exception as e:
-                reply = f"챗봇 연결 오류: {e}\n.env 파일에 GEMINI_API_KEY를 설정해주세요."
+                reply = f"챗봇 연결 오류: {e}\n.env 파일에 GEMINI_API_KEY=YOUR_KEY 형태로 설정되어 있는지 확인해주세요."
 
             st.write(reply)
             st.session_state.messages.append({"role": "assistant", "content": reply})
