@@ -175,61 +175,54 @@ with col4:
     </div>
     """, unsafe_allow_html=True)
 
-st.markdown("<br>", unsafe_allow_html=True)
+# ── AI 리포트 (전체 너비) ──────────────────────────────
+rsi_val = float(indicators.rsi.iloc[-1])
+rsi_signal = get_rsi_signal(rsi_val)
+bb_signal = get_bb_signal(
+    float(df["Close"].iloc[-1]),
+    float(indicators.bb_upper.iloc[-1]),
+    float(indicators.bb_lower.iloc[-1]),
+)
+vol_5d = float(garch_res.conditional_volatility.iloc[-5:].mean())
+vol_change = (float(garch_res.conditional_volatility.iloc[-1]) - vol_5d) / vol_5d * 100
+summary = summarize_var(var_res, investment)
 
-# ── 차트 레이아웃 ──────────────────────────────────────
-chart_col, info_col = st.columns([3, 1])
+st.markdown("#### 🤖 AI 위험 Report")
+st.info(f"{summary}\n\nRSI: {rsi_val:.1f} ({rsi_signal})\nBB: {bb_signal}\n변동성 5일 평균 대비: {vol_change:+.1f}%")
+
+st.markdown("---")
+
+# ── 차트 (왼쪽) + 랭킹+챗봇 (오른쪽) ────────────────────
+chart_col, right_col = st.columns([2, 1])
 
 with chart_col:
-    tab1, tab2, tab3 = st.tabs(["📈 주가 + VaR", "📊 변동성", "📉 기술 지표"])
-    
-    with tab1:
-        fig1 = plot_price_with_var(
-            df["Close"], var_res.var_series, ticker_name, confidence_label
-        )
-        st.plotly_chart(fig1, use_container_width=True)
-    
-    with tab2:
-        fig2 = plot_volatility(garch_res.conditional_volatility, ticker_name)
-        st.plotly_chart(fig2, use_container_width=True)
-    
-    with tab3:
-        fig3 = plot_technical_indicators(
-            df["Close"],
-            indicators.rsi,
-            indicators.sma_20,
-            indicators.sma_60,
-            indicators.bb_upper,
-            indicators.bb_lower,
-            indicators.volume,
-        )
-        st.plotly_chart(fig3, use_container_width=True)
-
-with info_col:
-    # AI 리스크 리포트
-    st.markdown("#### 🤖 AI 위험 Report")
-    summary = summarize_var(var_res, investment)
-    
-    rsi_val = float(indicators.rsi.iloc[-1])
-    rsi_signal = get_rsi_signal(rsi_val)
-    bb_signal = get_bb_signal(
-        float(df["Close"].iloc[-1]),
-        float(indicators.bb_upper.iloc[-1]),
-        float(indicators.bb_lower.iloc[-1]),
+    fig1 = plot_price_with_var(
+        df["Close"], var_res.var_series, ticker_name, confidence_label
     )
-    
-    vol_5d = float(garch_res.conditional_volatility.iloc[-5:].mean())
-    vol_change = (float(garch_res.conditional_volatility.iloc[-1]) - vol_5d) / vol_5d * 100
-    
-    st.info(f"{summary}\n\nRSI: {rsi_val:.1f} ({rsi_signal})\nBB: {bb_signal}\n변동성 5일 평균 대비: {vol_change:+.1f}%")
-    
-    # 리스크 랭킹
+    st.plotly_chart(fig1, use_container_width=True)
+
+    fig2 = plot_volatility(garch_res.conditional_volatility, ticker_name)
+    st.plotly_chart(fig2, use_container_width=True)
+
+    fig3 = plot_technical_indicators(
+        df["Close"],
+        indicators.rsi,
+        indicators.sma_20,
+        indicators.sma_60,
+        indicators.bb_upper,
+        indicators.bb_lower,
+        indicators.volume,
+    )
+    st.plotly_chart(fig3, use_container_width=True)
+
+with right_col:
+    # ── 랭킹 ──────────────────────────────────────────
     st.markdown("#### 📋 Today's Risk Ranking")
-    
+
     @st.cache_data(ttl=3600)
     def get_ranking(alpha):
         return compute_risk_ranking(alpha)
-    
+
     with st.spinner("랭킹 계산 중..."):
         try:
             ranking = get_ranking(alpha)
@@ -247,40 +240,43 @@ with info_col:
         except Exception as e:
             st.warning(f"랭킹 로딩 실패: {e}")
 
-# ── 챗봇 ─────────────────────────────────────────────
-# ── 챗봇 ─────────────────────────────────────────────
-st.markdown("---")
-st.markdown("#### 💬 리스크 분석 챗봇")
+    st.markdown("---")
 
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+    # ── 챗봇 ──────────────────────────────────────────
+    st.markdown("#### 💬 리스크 분석 챗봇")
 
-# 이전 대화 표시
-for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
-        st.write(msg["content"])
+    chat_container = st.container(height=600)
 
-if prompt := st.chat_input("리스크 지표에 대해 질문하세요..."):
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.write(prompt)
+    with chat_container:
+        if "messages" not in st.session_state:
+            st.session_state.messages = []
 
-    with st.chat_message("assistant"):
-        with st.spinner("분석 중..."):
-            try:
-                from google import genai
-                from google.genai import types
-                from dotenv import load_dotenv
+        for msg in st.session_state.messages:
+            with st.chat_message(msg["role"]):
+                st.write(msg["content"])
 
-                load_dotenv()
+    if prompt := st.chat_input("리스크 지표에 대해 질문하세요..."):
+        st.session_state.messages.append({"role": "user", "content": prompt})
 
-                api_key = os.getenv("GEMINI_API_KEY")
-                if not api_key:
-                    raise RuntimeError("GEMINI_API_KEY가 설정되지 않았습니다. .env 또는 현재 터미널 환경변수를 확인하세요.")
+        with chat_container:
+            with st.chat_message("user"):
+                st.write(prompt)
 
-                client = genai.Client(api_key=api_key)
+            with st.chat_message("assistant"):
+                with st.spinner("분석 중..."):
+                    try:
+                        from google import genai
+                        from google.genai import types
+                        from dotenv import load_dotenv
+                        load_dotenv()
 
-                context = f"""
+                        api_key = os.getenv("GEMINI_API_KEY")
+                        if not api_key:
+                            raise RuntimeError("GEMINI_API_KEY가 설정되지 않았습니다.")
+
+                        client = genai.Client(api_key=api_key)
+
+                        context = f"""
 당신은 금융 리스크 분석 전문 AI 어시스턴트입니다.
 현재 분석 중인 종목: {ticker_name} ({ticker})
 현재 분석 데이터:
@@ -293,31 +289,29 @@ if prompt := st.chat_input("리스크 지표에 대해 질문하세요..."):
 - 투자 성향: {"안정형" if alpha==0.01 else "공격형"} (α={alpha})
 사용자의 질문에 위 데이터를 바탕으로 쉽고 직관적인 한국어로 답변하세요.
 투자 손실에 대한 책임은 본인에게 있음을 적절히 안내하세요.
-                """
+                        """
 
-                history = []
-                for message in st.session_state.messages[:-1]:
-                    history.append(
-                        {
-                            "role": "user" if message["role"] == "user" else "model",
-                            "parts": [{"text": message["content"]}],
-                        }
-                    )
+                        history = []
+                        for message in st.session_state.messages[:-1]:
+                            history.append({
+                                "role": "user" if message["role"] == "user" else "model",
+                                "parts": [{"text": message["content"]}],
+                            })
 
-                contents = history + [{"role": "user", "parts": [{"text": prompt}]}]
+                        contents = history + [{"role": "user", "parts": [{"text": prompt}]}]
 
-                response = client.models.generate_content(
-                    model="gemini-2.5-flash",
-                    contents=contents,
-                    config=types.GenerateContentConfig(
-                        system_instruction=context,
-                        temperature=0.4,
-                    ),
-                )
-                reply = response.text
+                        response = client.models.generate_content(
+                            model="gemini-2.5-flash",
+                            contents=contents,
+                            config=types.GenerateContentConfig(
+                                system_instruction=context,
+                                temperature=0.4,
+                            ),
+                        )
+                        reply = response.text
 
-            except Exception as e:
-                reply = f"챗봇 연결 오류: {e}\n.env 파일에 GEMINI_API_KEY=YOUR_KEY 형태로 설정되어 있는지 확인해주세요."
+                    except Exception as e:
+                        reply = f"챗봇 연결 오류: {e}\n.env 파일에 GEMINI_API_KEY를 확인해주세요."
 
-            st.write(reply)
-            st.session_state.messages.append({"role": "assistant", "content": reply})
+                    st.write(reply)
+                    st.session_state.messages.append({"role": "assistant", "content": reply})
