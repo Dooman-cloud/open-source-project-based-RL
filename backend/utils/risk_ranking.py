@@ -27,7 +27,7 @@ class StockRiskSummary:
     vol_change_5d_pct: float  # 5일 평균 대비 변동성 변화율 (%)
 
 
-def compute_risk_ranking(alpha: float = 0.01) -> list[StockRiskSummary]:
+def compute_risk_ranking(alpha: float = 0.01,period: str = "6mo") -> list[StockRiskSummary]:
     """
     모든 종목 리스크 계산 후 변동성 기준 랭킹 반환
     
@@ -38,14 +38,14 @@ def compute_risk_ranking(alpha: float = 0.01) -> list[StockRiskSummary]:
     
     for name, ticker in TICKERS.items():
         try:
-            df = fetch_price_data(ticker, period="1y")
+            df = fetch_price_data(ticker, period=period)
             garch_res = fit_gjr_garch(df["log_return"])
             var_res = calculate_var_es(garch_res, df["Close"], alpha=alpha)
             
             vol = garch_res.conditional_volatility
-            vol_today = float(vol.iloc[-1])
-            vol_prev = float(vol.iloc[-2]) if len(vol) > 1 else vol_today
-            vol_5d_avg = float(vol.iloc[-5:].mean())
+            vol_today = garch_res.forecast_volatility        # 오늘 예측값으로 변경
+            vol_prev = float(vol.iloc[-1])                   # 어제 추정값
+            vol_5d_avg = float(vol.iloc[-5:].mean())         # 최근 5일 평균
             
             summaries.append(StockRiskSummary(
                 name=name,
@@ -76,10 +76,10 @@ def format_ranking_for_display(summaries: list[StockRiskSummary], top_n: int = 3
             "rank": i,
             "name": s.name,
             "ticker": s.ticker,
-            "vol_display": f"{change_sign}{s.vol_change_pct:.1f}% Volatility",
+            "vol_display": f"{change_sign}{s.vol_change_pct:.1f}% 오늘의 예측 변동성 변화율",
             "var_display": f"VaR {s.var_today*100:.2f}%",
             "volatility": s.volatility_today,
-            "is_high_risk": s.vol_change_pct > 10 or abs(s.var_today) > 0.03,
+            "is_high_risk": abs(s.vol_change_pct) > 10 or abs(s.var_today) > 0.03,
         })
     return result
 

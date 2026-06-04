@@ -97,15 +97,15 @@ with st.sidebar:
     st.markdown("### 투자 성향")
     risk_mode = st.radio(
         "투자 성향",
-        ["Conservative (α=0.01)", "Aggressive (α=0.05)"],
+        ["보수적 (α=0.01)", "공격적 (α=0.05)"],
         label_visibility="collapsed",
     )
-    alpha = 0.01 if "Conservative" in risk_mode else 0.05
+    alpha = 0.01 if "보수적" in risk_mode else 0.05
     confidence_label = "99%" if alpha == 0.01 else "95%"
     
     st.markdown("### 분석 기간")
     period_map = {"1주": "1mo", "3개월": "3mo", "6개월": "6mo", "1년": "1y", "2년": "2y", "5년": "5y"}
-    period_label = st.select_slider("분석 기간", list(period_map.keys()), value="1년", label_visibility="collapsed")
+    period_label = st.select_slider("분석 기간", list(period_map.keys()), value="6개월", label_visibility="collapsed")
     period = period_map[period_label]
     
     st.markdown("### 투자금")
@@ -167,10 +167,10 @@ with col3:
     """, unsafe_allow_html=True)
 
 with col4:
-    vol_today = float(garch_res.conditional_volatility.iloc[-1]) * 100
+    vol_today = garch_res.forecast_volatility * 100
     st.markdown(f"""
     <div class='metric-card'>
-        <div class='metric-label'>Volatility (GARCH σ)</div>
+        <div class='metric-label'>Forecasted Volatility (σ)</div>
         <div class='metric-value'>{vol_today:.2f}%</div>
     </div>
     """, unsafe_allow_html=True)
@@ -220,12 +220,12 @@ with right_col:
     st.markdown("#### 📋 Today's Risk Ranking")
 
     @st.cache_data(ttl=3600)
-    def get_ranking(alpha):
-        return compute_risk_ranking(alpha)
+    def get_ranking(alpha, period):
+        return compute_risk_ranking(alpha, period)
 
     with st.spinner("랭킹 계산 중..."):
         try:
-            ranking = get_ranking(alpha)
+            ranking = get_ranking(alpha,period)
             items = format_ranking_for_display(ranking, top_n=3)
             for item in items:
                 color_class = "risk-card" if item["is_high_risk"] else "risk-card medium"
