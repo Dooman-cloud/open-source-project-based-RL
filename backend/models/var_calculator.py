@@ -61,9 +61,11 @@ def calculate_var_es(
     var_series = z_var * sigma
     es_series = z_es * sigma
     
-    # 현재(마지막) 값
-    var_today = float(var_series.iloc[-1])
-    es_today = float(es_series.iloc[-1])
+    forecast_sigma = garch_result.forecast_volatility
+    # 오늘 예측 변동성
+
+    var_today = z_var * forecast_sigma    # 오늘 예측 VaR
+    es_today  = z_es  * forecast_sigma    # 오늘 예측 ES
     current_price = float(close_prices.iloc[-1])
     
     # 투자금 기준 금액

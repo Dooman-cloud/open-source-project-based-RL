@@ -26,9 +26,9 @@ CACHE_DIR = os.path.join(os.path.dirname(__file__), "cache")
 os.makedirs(CACHE_DIR, exist_ok=True)
 
 
-def get_cache_path(ticker: str) -> str:
+def get_cache_path(ticker: str, period: str = "6mo") -> str:
     safe = ticker.replace("^", "").replace("=", "").replace(".", "_")
-    return os.path.join(CACHE_DIR, f"{safe}.csv")
+    return os.path.join(CACHE_DIR, f"{safe}_{period}.csv")
 
 
 def is_cache_valid(cache_path: str, max_age_hours: int = 24) -> bool:
@@ -54,7 +54,7 @@ def _period_to_days(period: str) -> int:
     return mapping.get(period, 252)
 
 
-def _generate_fallback_price_data(ticker: str, period: str = "2y") -> pd.DataFrame:
+def _generate_fallback_price_data(ticker: str, period: str = "6mo") -> pd.DataFrame:
     """네트워크 실패 시 사용할 결정적 샘플 데이터 생성"""
     days = _period_to_days(period)
     index = pd.date_range(end=datetime.now(), periods=days, freq="B")
@@ -85,7 +85,7 @@ def _generate_fallback_price_data(ticker: str, period: str = "2y") -> pd.DataFra
     return df.dropna()
 
 
-def fetch_price_data(ticker: str, period: str = "2y") -> pd.DataFrame:
+def fetch_price_data(ticker: str, period: str = "6mo") -> pd.DataFrame:
     """
     주가 데이터 수집. 캐시가 유효하면 캐시에서 로드.
     
@@ -96,7 +96,7 @@ def fetch_price_data(ticker: str, period: str = "2y") -> pd.DataFrame:
     Returns:
         DataFrame with columns: Open, High, Low, Close, Volume, log_return
     """
-    cache_path = get_cache_path(ticker)
+    cache_path = get_cache_path(ticker, period)
     
     if is_cache_valid(cache_path):
         df = pd.read_csv(cache_path, index_col=0, parse_dates=True)
@@ -130,7 +130,7 @@ def fetch_price_data(ticker: str, period: str = "2y") -> pd.DataFrame:
         return df
 
 
-def fetch_all_tickers(period: str = "2y") -> dict[str, pd.DataFrame]:
+def fetch_all_tickers(period: str = "6mo") -> dict[str, pd.DataFrame]:
     """모든 지원 종목 데이터 수집"""
     results = {}
     for name, ticker in TICKERS.items():
