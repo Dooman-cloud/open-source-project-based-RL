@@ -21,13 +21,18 @@ class StockRiskSummary:
     ticker: str
     current_price: float
     var_today: float          # 수익률 기준 VaR (음수)
+    var_amount: float         # 투자금 기준 VaR 금액
     volatility_today: float   # 현재 변동성
     volatility_5d_avg: float  # 최근 5일 평균 변동성
     vol_change_pct: float     # 전일 대비 변동성 변화율 (%)
     vol_change_5d_pct: float  # 5일 평균 대비 변동성 변화율 (%)
 
 
-def compute_risk_ranking(alpha: float = 0.01,period: str = "6mo") -> list[StockRiskSummary]:
+def compute_risk_ranking(
+    alpha: float = 0.01,
+    period: str = "6mo",
+    investment: float = 10_000_000,
+) -> list[StockRiskSummary]:
     """
     모든 종목 리스크 계산 후 변동성 기준 랭킹 반환
     
@@ -40,7 +45,7 @@ def compute_risk_ranking(alpha: float = 0.01,period: str = "6mo") -> list[StockR
         try:
             df = fetch_price_data(ticker, period=period)
             garch_res = fit_gjr_garch(df["log_return"])
-            var_res = calculate_var_es(garch_res, df["Close"], alpha=alpha)
+            var_res = calculate_var_es(garch_res, df["Close"], alpha=alpha, investment=investment)
             
             vol = garch_res.conditional_volatility
             vol_today = garch_res.forecast_volatility        # 오늘 예측값으로 변경
@@ -52,6 +57,7 @@ def compute_risk_ranking(alpha: float = 0.01,period: str = "6mo") -> list[StockR
                 ticker=ticker,
                 current_price=var_res.current_price,
                 var_today=var_res.var_today,
+                var_amount=var_res.var_amount,
                 volatility_today=vol_today,
                 volatility_5d_avg=vol_5d_avg,
                 vol_change_pct=(vol_today - vol_prev) / vol_prev * 100,
@@ -76,8 +82,8 @@ def format_ranking_for_display(summaries: list[StockRiskSummary], top_n: int = 3
             "rank": i,
             "name": s.name,
             "ticker": s.ticker,
-            "vol_display": f"{change_sign}{s.vol_change_pct:.1f}% 오늘의 예측 변동성 변화율",
-            "var_display": f"VaR {s.var_today*100:.2f}%",
+            "vol_display": f"변동성: {change_sign}{s.vol_change_pct:.1f}%",
+            "var_display": f"VaR(최대 손실 예상액): {abs(s.var_amount):,.0f}원",
             "volatility": s.volatility_today,
             "is_high_risk": abs(s.vol_change_pct) > 10 or abs(s.var_today) > 0.03,
         })
@@ -88,8 +94,8 @@ if __name__ == "__main__":
     print("=== 리스크 랭킹 계산 중... ===")
     ranking = compute_risk_ranking(alpha=0.01)
     
-    print("\n📊 TODAY'S RISK RANKING (TOP 3)")
+    print("\n📊 손실 고위험 종목 (TOP 3)")
     for i, s in enumerate(ranking[:3], 1):
         print(f"{i}. {s.name} ({s.ticker})")
-        print(f"   변동성: {s.volatility_today*100:.2f}% | VaR: {s.var_today*100:.2f}%")
+        print(f"   변동성: {s.volatility_today*100:.2f}% | VaR: {abs(s.var_amount):,.0f}원")
         print(f"   전일 대비: {s.vol_change_pct:+.1f}%")

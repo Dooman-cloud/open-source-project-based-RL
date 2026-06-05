@@ -25,8 +25,7 @@ class VaRResult:
     
     @property
     def confidence_pct(self) -> str:
-        return f"{self.confidence*100:.0f}%"
-
+        return f"{self.confidence*100:.1f}".rstrip("0").rstrip(".") + "%"
 
 def calculate_var_es(
     garch_result: GARCHResult,
@@ -104,10 +103,13 @@ def summarize_var(var_result: VaRResult, investment: float = 10_000_000) -> str:
     var_won = abs(var_result.var_amount)
     es_won = abs(var_result.es_amount)
     
+    # alpha(유의수준) 소수점 동적 포맷팅 처리
+    alpha_pct_str = f"{var_result.alpha*100:.1f}".rstrip("0").rstrip(".")
+    
     summary = (
         f"신뢰수준 {conf} 기준 일별 VaR은 {var_pct:.2f}%로, "
         f"투자금 {investment/10000:.0f}만원 기준 최대 손실 예상액은 약 {var_won/10000:.1f}만원입니다. "
-        f"최악의 {var_result.alpha*100:.0f}% 상황에서 평균 손실(ES)은 {es_pct:.2f}% "
+        f"최악의 {alpha_pct_str}% 상황에서 평균 손실(ES)은 {es_pct:.2f}% "
         f"(약 {es_won/10000:.1f}만원)으로 추정됩니다."
     )
     return summary
