@@ -82,8 +82,8 @@ def format_ranking_for_display(summaries: list[StockRiskSummary], top_n: int = 3
             "rank": i,
             "name": s.name,
             "ticker": s.ticker,
-            "vol_display": f"변동성: {change_sign}{s.vol_change_pct:.1f}%",
-            "var_display": f"VaR(최대 손실 예상액): {abs(s.var_amount):,.0f}원",
+            "vol_display": f"예측 변동성 변화율: {change_sign}{s.vol_change_pct:.1f}%",
+            "var_display": f"예측 VaR 손실액: {abs(s.var_amount):,.0f}원",
             "volatility": s.volatility_today,
             "is_high_risk": abs(s.vol_change_pct) > 10 or abs(s.var_today) > 0.03,
         })

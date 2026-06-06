@@ -144,15 +144,15 @@ risk_management_platform/
 │
 ├── backend/
 │   ├── data/
-│   │   ├── init.py
+│   │   ├── __init__.py
 │   │   ├── fetcher.py          # yfinance 데이터 수집 + 캐싱
 │   │   └── cache/              # 캐싱된 CSV 파일들
 │   ├── models/
-│   │   ├── init.py
+│   │   ├── __init__.py
 │   │   ├── garch_model.py      # GJR-GARCH 변동성 모델
 │   │   └── var_calculator.py   # VaR, ES 계산
 │   └── utils/
-│       ├── init.py
+│       ├── __init__.py
 │       ├── indicators.py       # RSI, MA, BB, Golden Cross
 │       └── risk_ranking.py     # 리스크 랭킹 시스템
 │
@@ -161,14 +161,15 @@ risk_management_platform/
 │
 ├── frontend/
 │   ├── components/
-│   │   ├── init.py
+│   │   ├── __init__.py
 │   │   └── charts.py           # Plotly 차트 컴포넌트
 │   │   
-│   ├── **init**.py
+│   ├── __init__.py
 │   └── app.py                  # Streamlit 메인 앱
 │
-├── config.toml #다크 테마 기본 설정 
-├── .env
+├── .streamlit/
+│   ├── config.toml #다크 테마 기본 설정 
+│
 ├── .gitignore
 ├── docker-compose.yml
 ├── README.md

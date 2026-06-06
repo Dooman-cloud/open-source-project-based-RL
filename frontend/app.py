@@ -19,6 +19,19 @@ from frontend.components.charts import (
     plot_volatility,
     plot_technical_indicators,
 )
+from datetime import datetime, timedelta
+
+def get_prediction_label(ticker: str) -> str:
+    """
+    장마감 여부와 주말 고려하여
+    예측 날짜 라벨 반환
+    """
+    from backend.data.fetcher import get_last_market_close, get_next_trading_day
+
+    last_close = get_last_market_close(ticker)
+    next_trading = get_next_trading_day(last_close)
+
+    return next_trading.strftime("%m/%d")
 
 # ── 페이지 설정 ──────────────────────────────────────
 st.set_page_config(
@@ -192,30 +205,36 @@ with col1:
     </div>
     """, unsafe_allow_html=True)
 
+# 예측 날짜 라벨
+pred_label = get_prediction_label(ticker)
+
+# col2 - Daily VaR
 with col2:
     var_pct = var_res.var_today * 100
     var_str = f"{var_pct:.2f}%"
     st.markdown(f"""
     <div class='metric-card'>
-        <div class='metric-label'>{confidence_label} Daily VaR</div>
+        <div class='metric-label'>{confidence_label} {pred_label} 예측 VaR</div>
         <div class='metric-value negative'>{var_str}</div>
     </div>
     """, unsafe_allow_html=True)
 
+# col3 - ES
 with col3:
     es_pct = var_res.es_today * 100
     st.markdown(f"""
     <div class='metric-card'>
-        <div class='metric-label'>Expected Shortfall</div>
+        <div class='metric-label'>{pred_label} 예측 ES</div>
         <div class='metric-value negative'>{es_pct:.2f}%</div>
     </div>
     """, unsafe_allow_html=True)
 
+# col4 - Volatility
 with col4:
     vol_today = garch_res.forecast_volatility * 100
     st.markdown(f"""
     <div class='metric-card'>
-        <div class='metric-label'>Forecasted Volatility (σ)</div>
+        <div class='metric-label'>{pred_label} 예측 변동성 (σ)</div>
         <div class='metric-value'>{vol_today:.2f}%</div>
     </div>
     """, unsafe_allow_html=True)
@@ -229,7 +248,7 @@ bb_signal = get_bb_signal(
     float(indicators.bb_lower.iloc[-1]),
 )
 vol_5d = float(garch_res.conditional_volatility.iloc[-5:].mean())
-vol_change = (float(garch_res.conditional_volatility.iloc[-1]) - vol_5d) / vol_5d * 100
+vol_change = (float(garch_res.forecast_volatility) - vol_5d) / vol_5d * 100
 # 골든크로스 신호 해석(챗봇에만 적용)
 golden_cross = int(indicators.golden_cross.iloc[-1])
 if golden_cross == 1:
@@ -341,23 +360,32 @@ with right_col:
 
     chat_container = st.container(height=600)
 
-    if (
-        "current_ticker" not in st.session_state
-        or st.session_state.current_ticker != ticker_name
-        or st.session_state.current_period != period
-        or st.session_state.current_alpha != alpha
-        ):
-        st.session_state.current_ticker = ticker_name
-        st.session_state.current_period = period      # ← 추가
-        st.session_state.current_alpha = alpha         # ← 추가
+    # 안전하게 세션 상태 확인 및 초기화: 종목/기간/신뢰수준/투자금이 바뀐 경우에만 환영 메시지로 초기화
+    need_reset = (
+        st.session_state.get("current_ticker") != ticker_name
+        or st.session_state.get("current_period") != period
+        or st.session_state.get("current_alpha") != alpha
+        or st.session_state.get("current_investment") != investment
+    )
 
-    welcome_msg = (
-        f"안녕하세요! 👋 **{ticker_name}**의 실시간 리스크 분석이 완료되었습니다.\n\n"
-        f"현재 **{confidence_label} 기준 예측 최대 손실(VaR)은 {var_res.var_today*100:.2f}%** 이며, "
-        f"기술적 지표인 RSI는 **{rsi_val:.1f} ({rsi_signal})** 상태를 가리키고 있습니다.\n\n"
-        f"이 수치가 의미하는 바가 무엇인지, 혹은 앞으로의 투자 리스크에 대해 궁금한 점이 있으시다면 편하게 질문해 주세요!"
+    if need_reset:
+        st.session_state.current_ticker = ticker_name
+        st.session_state.current_period = period
+        st.session_state.current_alpha = alpha
+        st.session_state.current_investment = investment
+
+        # VaR는 금액으로 표시(리뷰와 일치하도록)
+        loss_amount = float(investment) * abs(float(var_res.var_today))
+        welcome_msg = (
+            f"안녕하세요! 👋 **{ticker_name}**의 실시간 리스크 분석이 완료되었습니다.\n\n"
+            f"현재 **{confidence_label} 기준 예측 최대 손실(VaR)은 약 {loss_amount:,.0f}원** 이며, "
+            f"기술적 지표인 RSI는 **{rsi_val:.1f} ({rsi_signal})** 상태를 가리키고 있습니다.\n\n"
+            f"이 수치가 의미하는 바가 무엇인지, 혹은 앞으로의 투자 리스크에 대해 궁금한 점이 있으시다면 편하게 질문해 주세요!"
         )
-    st.session_state.messages = [{"role": "assistant", "content": welcome_msg}]
+        st.session_state.messages = [{"role": "assistant", "content": welcome_msg}]
+    else:
+        # 기존 메시지 유지; messages 키가 없으면 빈 리스트로 초기화
+        st.session_state.setdefault("messages", [])
 
     with chat_container:
         for msg in st.session_state.messages:

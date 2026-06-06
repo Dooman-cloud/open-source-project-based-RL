@@ -6,8 +6,8 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 import os
-from datetime import datetime, timedelta
-
+from datetime import datetime, timedelta, date
+import pandas_market_calendars as mcal  # 설치 필요
 # 지원 종목 정의
 TICKERS = {
     "삼성전자": "005930.KS",
@@ -31,12 +31,83 @@ def get_cache_path(ticker: str, period: str = "6mo") -> str:
     return os.path.join(CACHE_DIR, f"{safe}_{period}.csv")
 
 
-def is_cache_valid(cache_path: str, max_age_hours: int = 24) -> bool:
-    """캐시 파일이 존재하고 max_age_hours 이내인지 확인"""
+
+def get_last_market_close(ticker: str) -> datetime:
+    """
+    가장 최근 장마감 시간 반환
+    주말/공휴일 고려
+    """
+    now = datetime.now()
+
+    # 종목별 장마감 시간 설정
+    if ".KS" in ticker or ticker in ["^KS11"]:
+        close_hour, close_minute = 15, 30   # 한국 3:30 PM
+    else:
+        close_hour, close_minute = 6, 0     # 해외 미국장 기준 KST 06:00
+
+    # 오늘부터 역순으로 탐색
+    check_date = now.date()
+
+    while True:
+        weekday = check_date.weekday()  # 0=월 1=화 2=수 3=목 4=금 5=토 6=일
+
+        # 주말이면 건너뜀
+        if weekday >= 5:
+            check_date -= timedelta(days=1)
+            continue
+
+        # 해당 날짜의 장마감 시간
+        close_dt = datetime(
+            check_date.year, check_date.month, check_date.day,
+            close_hour, close_minute, 0
+        )
+
+        # 오늘인데 아직 장마감 전이면 하루 전으로
+        if check_date == now.date() and now < close_dt:
+            check_date -= timedelta(days=1)
+            continue
+
+        # 장마감 시간이 현재보다 이전 → 마지막 장마감
+        return close_dt
+
+
+def get_next_trading_day(from_dt: datetime) -> datetime:
+    """
+    다음 거래일 날짜 반환
+    주말 건너뜀
+    """
+    next_date = from_dt.date() + timedelta(days=1)
+
+    while next_date.weekday() >= 5:  # 토(5), 일(6) 건너뜀
+        next_date += timedelta(days=1)
+
+    return datetime(next_date.year, next_date.month, next_date.day)
+
+
+def is_cache_valid(cache_path: str, ticker: str = "", max_age_hours: int = 24) -> bool:
+    """
+    캐시 유효성 확인
+    - 캐시가 마지막 장마감 이후에 만들어졌으면 유효
+    - 기존 24시간 조건도 유지
+    """
     if not os.path.exists(cache_path):
         return False
+
     mtime = datetime.fromtimestamp(os.path.getmtime(cache_path))
-    return (datetime.now() - mtime) < timedelta(hours=max_age_hours)
+    now = datetime.now()
+
+    # ticker 있으면 장마감 기준으로 확인
+    if ticker:
+        last_close = get_last_market_close(ticker)
+
+        # 캐시가 마지막 장마감 이후에 만들어졌으면 유효
+        if mtime >= last_close:
+            return True
+        else:
+            return False
+
+    # ticker 없으면 기존 24시간 조건
+    return (now - mtime) < timedelta(hours=max_age_hours)
 
 # 일별 분석 기준
 def _period_to_days(period: str) -> int:
@@ -97,8 +168,9 @@ def fetch_price_data(ticker: str, period: str = "6mo") -> pd.DataFrame:
         DataFrame with columns: Open, High, Low, Close, Volume, log_return
     """
     cache_path = get_cache_path(ticker, period)
-    
-    if is_cache_valid(cache_path):
+
+    # ticker 추가로 넘겨주기
+    if is_cache_valid(cache_path, ticker):
         df = pd.read_csv(cache_path, index_col=0, parse_dates=True)
         return df
     
