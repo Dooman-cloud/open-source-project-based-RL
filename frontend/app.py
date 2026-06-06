@@ -230,6 +230,14 @@ bb_signal = get_bb_signal(
 )
 vol_5d = float(garch_res.conditional_volatility.iloc[-5:].mean())
 vol_change = (float(garch_res.conditional_volatility.iloc[-1]) - vol_5d) / vol_5d * 100
+# 골든크로스 신호 해석(챗봇에만 적용)
+golden_cross = int(indicators.golden_cross.iloc[-1])
+if golden_cross == 1:
+    cross_signal = "골든크로스 발생 (매수 신호)"
+elif golden_cross == -1:
+    cross_signal = "데드크로스 발생 (매도 신호)"
+else:
+    cross_signal = "신호 없음"
 summary = summarize_var(var_res, investment)
 
 st.markdown("---")
@@ -333,16 +341,23 @@ with right_col:
 
     chat_container = st.container(height=600)
 
-    if "current_ticker" not in st.session_state or st.session_state.current_ticker != ticker_name:
+    if (
+        "current_ticker" not in st.session_state
+        or st.session_state.current_ticker != ticker_name
+        or st.session_state.current_period != period
+        or st.session_state.current_alpha != alpha
+        ):
         st.session_state.current_ticker = ticker_name
-        
-        welcome_msg = (
-            f"안녕하세요! 👋 **{ticker_name}**의 실시간 리스크 분석이 완료되었습니다.\n\n"
-            f"현재 **{confidence_label} 기준 예측 최대 손실(VaR)은 {var_res.var_today*100:.2f}%** 이며, "
-            f"기술적 지표인 RSI는 **{rsi_val:.1f} ({rsi_signal})** 상태를 가리키고 있습니다.\n\n"
-            f"이 수치가 의미하는 바가 무엇인지, 혹은 앞으로의 투자 리스크에 대해 궁금한 점이 있으시다면 편하게 질문해 주세요!"
+        st.session_state.current_period = period      # ← 추가
+        st.session_state.current_alpha = alpha         # ← 추가
+
+    welcome_msg = (
+        f"안녕하세요! 👋 **{ticker_name}**의 실시간 리스크 분석이 완료되었습니다.\n\n"
+        f"현재 **{confidence_label} 기준 예측 최대 손실(VaR)은 {var_res.var_today*100:.2f}%** 이며, "
+        f"기술적 지표인 RSI는 **{rsi_val:.1f} ({rsi_signal})** 상태를 가리키고 있습니다.\n\n"
+        f"이 수치가 의미하는 바가 무엇인지, 혹은 앞으로의 투자 리스크에 대해 궁금한 점이 있으시다면 편하게 질문해 주세요!"
         )
-        st.session_state.messages = [{"role": "assistant", "content": welcome_msg}]
+    st.session_state.messages = [{"role": "assistant", "content": welcome_msg}]
 
     with chat_container:
         for msg in st.session_state.messages:
@@ -373,17 +388,44 @@ with right_col:
 
                         context = f"""
 당신은 금융 리스크 분석 전문 AI 어시스턴트입니다.
-현재 분석 중인 종목: {ticker_name} ({ticker})
-현재 분석 데이터:
+단기 매매 추천이 아니라, 제공된 수치 기반의 리스크 해석과 투자 판단 보조에 주요 초점을 둡니다.
+
+[현재 분석 종목]
+- 종목: {ticker_name} ({ticker})
 - 현재 주가: {var_res.current_price:,.0f}
+- 신뢰수준: {confidence_label} (α={alpha:.3f})
+
+[현재 리스크 지표]
 - {confidence_label} VaR: {var_res.var_today*100:.2f}%
 - Expected Shortfall: {var_res.es_today*100:.2f}%
-- GARCH 변동성: {vol_today:.2f}%
+- GARCH 예측 변동성: {vol_today:.2f}%
 - RSI: {rsi_val:.1f} ({rsi_signal})
 - 볼린저 밴드: {bb_signal}
-- 신뢰수준: {confidence_label} (α={alpha:.3f})
-사용자의 질문에 위 데이터를 바탕으로 쉽고 직관적인 한국어로 답변하세요.
-투자 손실에 대한 책임은 본인에게 있음을 적절히 안내하세요.
+- 골든크로스: {cross_signal}
+
+[답변 방식 - 단계적 분석]
+아래 분석 절차를 내부적으로 따른 뒤, 최종 답변에는 핵심 근거와 결론만 간결하게 제시하세요.
+
+1단계 - 질문 파악:
+사용자가 묻는 핵심이 무엇인지 파악하세요.
+
+2단계 - 데이터 선택 및 해석:
+위 리스크 지표 중 질문과 관련된 지표를 이용해 해석하세요.
+질문과 관련 없는 지표는 억지로 모두 설명하지 마세요.
+
+3단계 - 종합 판단:
+선택한 지표들을 종합하여 현재 리스크 수준을 객관적으로 판단하세요.
+
+4단계 - 쉬운 설명:
+전문 용어를 최소화하고 일반 투자자도 이해할 수 있는 쉬운 한국어로 설명하세요.
+
+[제약 조건]
+"에 투자하세요", "를 매수/매도하세요" 처럼 결정론적인 투자 판단은 하지 마세요.
+특정 행동을 지시하지 말고, 사용자가 점검할 수 있는 리스크 요인을 제시하세요.
+제공된 수치는 과거 데이터와 모형 기반 추정치이며, 미래 손실을 확정적으로 예측하지 않습니다.
+
+[답변 마지막 고정 문구]
+⚠️ 본 해석은 의사결정 보조 도구이며 투자 손실에 대한 책임은 본인에게 있습니다.
                         """
 
                         history = []
