@@ -440,22 +440,42 @@ with right_col:
 
                         client = genai.Client(api_key=api_key)
 
+                        vol_latest = float(indicators.volume.iloc[-1])
+                        sma20_latest = float(indicators.sma_20.iloc[-1])
+                        sma60_latest = float(indicators.sma_60.iloc[-1])
+                        ema20_latest = float(indicators.ema_20.iloc[-1])
+                        
+                        ranking_context = "랭킹 데이터가 현재 없습니다."
+                        if 'items' in locals() and items:
+                            ranking_context = "\n".join([f"- {it['rank']}위 {it['name']}: {it['vol_display']}, {it['var_display']}" for it in items])
+
                         context = f"""
 당신은 금융 리스크 분석 전문 AI 어시스턴트입니다.
 단기 매매 추천이 아니라, 제공된 수치 기반의 리스크 해석과 투자 판단 보조에 주요 초점을 둡니다.
 
-[현재 분석 종목]
-- 종목: {ticker_name} ({ticker})
-- 현재 주가: {var_res.current_price:,.0f}
-- 신뢰수준: {confidence_label} (α={alpha:.3f})
+현재 분석 중인 종목: {ticker_name} ({ticker})
 
-[현재 리스크 지표]
-- {confidence_label} VaR: {var_res.var_today*100:.2f}%
-- Expected Shortfall: {var_res.es_today*100:.2f}%
-- GARCH 예측 변동성: {vol_today:.2f}%
-- RSI: {rsi_val:.1f} ({rsi_signal})
+[기본 설정 및 포지션]
+- 설정된 투자금: {investment:,.0f}원
+- 신뢰수준: {confidence_label} (α={alpha:.3f})
+- 분석 기간: {period_label}
+
+[주가 및 리스크 지표 (VaR/GARCH)]
+- 현재 주가: {var_res.current_price:,.0f}
+- {confidence_label} 예측 일별 최대 손실률(VaR): {var_res.var_today*100:.2f}% (약 {var_res.var_amount:,.0f}원)
+- 평균 손실(Expected Shortfall): {var_res.es_today*100:.2f}% (약 {var_res.es_amount:,.0f}원)
+- GARCH 예측 변동성 (Forecasted Volatility): {vol_today:.2f}%
+
+[기술적 지표 (Technical Indicators)]
+- RSI (상대강도지수): {rsi_val:.1f} ({rsi_signal})
 - 볼린저 밴드: {bb_signal}
-- 골든크로스: {cross_signal}
+- 이동평균선(SMA 20일): {sma20_latest:,.0f}
+- 이동평균선(SMA 60일): {sma60_latest:,.0f}
+- 지수이동평균선(EMA 20일): {ema20_latest:,.0f}
+- 최근 1일 거래량: {vol_latest:,.0f}
+
+[현재 시장 고위험 종목 TOP 3 랭킹]
+{ranking_context}
 
 [답변 방식 - 단계적 분석]
 아래 분석 절차를 내부적으로 따른 뒤, 최종 답변에는 핵심 근거와 결론만 간결하게 제시하세요.
