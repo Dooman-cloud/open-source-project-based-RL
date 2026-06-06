@@ -67,7 +67,7 @@ def compute_risk_ranking(
             print(f"[RANKING] {name} 건너뜀: {e}")
     
     # 변동성 크기 기준 내림차순 정렬
-    summaries.sort(key=lambda x: x.volatility_today, reverse=True)
+    summaries.sort(key=lambda x: abs(x.var_amount), reverse=True)
     return summaries
 
 
