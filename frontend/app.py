@@ -2,7 +2,7 @@
 frontend/app.py
 RiskGuard AI — 메인 Streamlit 앱
 """
-from datetime import date
+from datetime import date, datetime, timedelta
 import streamlit as st
 import sys
 import os
@@ -19,19 +19,50 @@ from frontend.components.charts import (
     plot_volatility,
     plot_technical_indicators,
 )
-from datetime import datetime, timedelta
 
-def get_prediction_label(ticker: str) -> str:
+
+def get_prediction_info(ticker: str) -> tuple[str, str]:
     """
-    장마감 여부와 주말 고려하여
-    예측 날짜 라벨 반환
+    장마감 여부와 주말, 한국/미국 시차를 완벽 고려하여
+    상단용 긴 안내 문구와 카드용 짧은 날짜를 반환
     """
-    from backend.data.fetcher import get_last_market_close, get_next_trading_day
+    now_utc = datetime.utcnow()
+    now_kst = now_utc + timedelta(hours=9)
+    
+    is_korean = ".KS" in ticker or ticker.startswith("^KS")
+    
+    if now_kst.weekday() == 5: # 토요일
+        target = now_kst + timedelta(days=2)
+        status = "장마감 [주말 휴장]"
+    elif now_kst.weekday() == 6: # 일요일
+        target = now_kst + timedelta(days=1)
+        status = "장마감 [주말 휴장]"
+    else:
+        # 평일 개장/마감 판별
+        if is_korean:
+            is_closed = now_kst.hour > 15 or (now_kst.hour == 15 and now_kst.minute >= 30)
+        else:
+            # 미국장: 한국시간 오전 7시 ~ 오후 10시 장 닫힘(개장 전)
+            is_closed = 7 <= now_kst.hour <= 22
+            
+        if is_closed:
+            if is_korean:
+                target = now_kst + timedelta(days=3) if now_kst.weekday() == 4 else now_kst + timedelta(days=1)
+                status = "장 마감"
+            else:
+                target = now_kst
+                status = "장 개장 전"
+        else:
+            if not is_korean and now_kst.hour < 7:
+                target = now_kst - timedelta(days=1)
+            else:
+                target = now_kst
+            status = "장 마감 전"
+            
+    long_label = f"{target.strftime('%Y-%m-%d')} 투자 리스크 예측 분석 결과 ({status})"
+    short_label = target.strftime("%m/%d")
+    return long_label, short_label
 
-    last_close = get_last_market_close(ticker)
-    next_trading = get_next_trading_day(last_close)
-
-    return next_trading.strftime("%m/%d")
 
 # ── 페이지 설정 ──────────────────────────────────────
 st.set_page_config(
@@ -172,7 +203,13 @@ with st.sidebar:
 
 
 # ── 메인 콘텐츠 ───────────────────────────────────────
+# ⭐ 복구된 로직 적용! (상단용 긴 텍스트, 카드용 짧은 텍스트)
+long_date_label, short_date_label = get_prediction_info(ticker)
+
 st.markdown(f"<div class='page-title' style='font-size: 44px;'>{ticker_name.upper()}</div>", unsafe_allow_html=True)
+# 대제목 바로 아래에 세련된 연회색으로 날짜 안내 문구 삽입
+st.markdown(f"<div style='color: #94A3B8; font-size: 16px; margin-bottom: 24px; font-weight: 500; letter-spacing: -0.5px;'>🗓️ {long_date_label}</div>", unsafe_allow_html=True)
+
 
 # 데이터 로딩
 @st.cache_data(ttl=3600)
@@ -226,13 +263,13 @@ with col1:
     currency = "KRW" if ".KS" in ticker or ticker.startswith("^KS") else "USD"
     st.markdown(f"""
     <div class='metric-card'>
-        <div class='metric-label'>Closing Price</div>
+        <div class='metric-label'>조정 종가</div>
         <div class='metric-value'>{price_str} {currency}</div>
     </div>
     """, unsafe_allow_html=True)
 
-# 예측 날짜 라벨
-pred_label = get_prediction_label(ticker)
+# 예측 날짜 라벨 (메트릭 카드용 짧은 버전)
+pred_label = short_date_label
 
 # col2 - Daily VaR
 with col2:
@@ -240,7 +277,7 @@ with col2:
     var_str = f"{var_pct:.2f}%"
     st.markdown(f"""
     <div class='metric-card'>
-        <div class='metric-label'>{confidence_label} {pred_label} 예측 VaR</div>
+        <div class='metric-label'>최대 손실액(VaR)</div>
         <div class='metric-value negative'>{var_str}</div>
     </div>
     """, unsafe_allow_html=True)
@@ -250,7 +287,7 @@ with col3:
     es_pct = var_res.es_today * 100
     st.markdown(f"""
     <div class='metric-card'>
-        <div class='metric-label'>{pred_label} 예측 ES</div>
+        <div class='metric-label'>최대 평균 손실(ES)</div>
         <div class='metric-value negative'>{es_pct:.2f}%</div>
     </div>
     """, unsafe_allow_html=True)
@@ -260,7 +297,7 @@ with col4:
     vol_today = garch_res.forecast_volatility * 100
     st.markdown(f"""
     <div class='metric-card'>
-        <div class='metric-label'>{pred_label} 예측 변동성 (σ)</div>
+        <div class='metric-label'>예측 변동성 (σ)</div>
         <div class='metric-value'>{vol_today:.2f}%</div>
     </div>
     """, unsafe_allow_html=True)
@@ -275,6 +312,7 @@ bb_signal = get_bb_signal(
 )
 vol_5d = float(garch_res.conditional_volatility.iloc[-5:].mean())
 vol_change = (float(garch_res.forecast_volatility) - vol_5d) / vol_5d * 100
+
 # 골든크로스 신호 해석(챗봇에만 적용)
 golden_cross = int(indicators.golden_cross.iloc[-1])
 if golden_cross == 1:
@@ -420,7 +458,6 @@ with right_col:
 
     if prompt := st.chat_input("리스크 지표에 대해 질문하세요..."):
         st.session_state.messages.append({"role": "user", "content": prompt})
-
 
         with chat_container:
             with st.chat_message("user"):
