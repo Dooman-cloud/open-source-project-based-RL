@@ -7,7 +7,6 @@ import pandas as pd
 import numpy as np
 import os
 from datetime import datetime, timedelta, date
-import pandas_market_calendars as mcal  # 설치 필요
 # 지원 종목 정의
 TICKERS = {
     "삼성전자": "005930.KS",
