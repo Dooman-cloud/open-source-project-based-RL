@@ -12,7 +12,7 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from backend.data.fetcher import TICKERS, fetch_price_data
 from backend.models.garch_model import fit_gjr_garch
 from backend.models.var_calculator import calculate_var_es, summarize_var
-from backend.utils.indicators import calculate_all_indicators, get_rsi_signal, get_bb_signal
+from backend.utils.indicators import calculate_all_indicators, get_rsi_signal, get_bb_signal, IndicatorResult
 from backend.utils.risk_ranking import compute_risk_ranking, format_ranking_for_display
 from frontend.components.charts import (
     plot_price_with_var,
@@ -177,12 +177,38 @@ st.markdown(f"<div class='page-title' style='font-size: 44px;'>{ticker_name.uppe
 # 데이터 로딩
 @st.cache_data(ttl=3600)
 def load_analysis(ticker: str, period: str, alpha: float, investment: float):
-    df = fetch_price_data(ticker, period=period)
+    long_df = fetch_price_data(ticker, period="5y")
+    long_indicators = calculate_all_indicators(long_df)
+
+    period_days_map = {
+        "1mo": 21,
+        "3mo": 63,
+        "6mo": 126,
+        "1y": 252,
+        "2y": 504,
+        "5y": 1260
+    }
+    days = period_days_map.get(period, 126) # 맵핑 안 되면 기본값 6개월
+
+    df = long_df.iloc[-days:]
+
     garch_res = fit_gjr_garch(df["log_return"])
     var_res = calculate_var_es(garch_res, df["Close"], alpha=alpha, investment=investment)
-    latest_df = fetch_price_data(ticker, period="1mo")
-    var_res.current_price = float(latest_df["Close"].iloc[-1])
-    indicators = calculate_all_indicators(df)
+    var_res.current_price = float(df["Close"].iloc[-1]) 
+
+    valid_dates = df.index
+    indicators = IndicatorResult(
+        rsi=long_indicators.rsi.loc[valid_dates],
+        sma_20=long_indicators.sma_20.loc[valid_dates],
+        sma_60=long_indicators.sma_60.loc[valid_dates],
+        ema_20=long_indicators.ema_20.loc[valid_dates],
+        bb_upper=long_indicators.bb_upper.loc[valid_dates],
+        bb_middle=long_indicators.bb_middle.loc[valid_dates],
+        bb_lower=long_indicators.bb_lower.loc[valid_dates],
+        golden_cross=long_indicators.golden_cross.loc[valid_dates],
+        volume=long_indicators.volume.loc[valid_dates],
+    )
+
     return df, garch_res, var_res, indicators
 
 with st.spinner("분석 중..."):
