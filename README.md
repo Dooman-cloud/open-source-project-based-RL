@@ -1,6 +1,11 @@
 
 # 통계-AI 모델 기반 일 별 금융 자산 리스크 관리 플랫폼
 
+## 0. 서비스 시연 영상
+
+https://github.com/user-attachments/assets/b6b7a081-a85f-42b6-8673-9ab3ac7cb589
+
+
 ## 1. 프로젝트 배경
 
 #### **기존 서비스의 한계**
