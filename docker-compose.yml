@@ -1,19 +1,13 @@
-version: "3.9"
+version: '3.8'
 
 services:
-  riskguard:
+  riskdoc-app:
     build:
-      context: .
-      dockerfile: docker/Dockerfile
+      context: .  # 명령어 실행 위치를 프로젝트 루트로 지정
+      dockerfile: docker/Dockerfile # 레시피 파일 위치 지정
+    container_name: riskdoc_container
     ports:
-      - "8501:8501"
-    volumes:
-      - ./backend/data/cache:/app/backend/data/cache
-    environment:
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      - "8501:8501" # 내 컴퓨터 8501 포트 -> 도커 안의 8501 포트 연결
+    env_file:
+      - .env # Gemini API 키를 도커 안으로 안전하게 넘겨줌
+    restart: unless-stopped 
