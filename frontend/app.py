@@ -2,7 +2,7 @@
 frontend/app.py
 RiskGuard AI — 메인 Streamlit 앱
 """
-from datetime import date
+from datetime import date, datetime, timedelta
 import streamlit as st
 import sys
 import os
@@ -12,13 +12,57 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from backend.data.fetcher import TICKERS, fetch_price_data
 from backend.models.garch_model import fit_gjr_garch
 from backend.models.var_calculator import calculate_var_es, summarize_var
-from backend.utils.indicators import calculate_all_indicators, get_rsi_signal, get_bb_signal
+from backend.utils.indicators import calculate_all_indicators, get_rsi_signal, get_bb_signal, IndicatorResult
 from backend.utils.risk_ranking import compute_risk_ranking, format_ranking_for_display
 from frontend.components.charts import (
     plot_price_with_var,
     plot_volatility,
     plot_technical_indicators,
 )
+
+
+def get_prediction_info(ticker: str) -> tuple[str, str]:
+    """
+    장마감 여부와 주말, 한국/미국 시차를 완벽 고려하여
+    상단용 긴 안내 문구와 카드용 짧은 날짜를 반환
+    """
+    now_utc = datetime.utcnow()
+    now_kst = now_utc + timedelta(hours=9)
+    
+    is_korean = ".KS" in ticker or ticker.startswith("^KS")
+    
+    if now_kst.weekday() == 5: # 토요일
+        target = now_kst + timedelta(days=2)
+        status = "장마감 [주말 휴장]"
+    elif now_kst.weekday() == 6: # 일요일
+        target = now_kst + timedelta(days=1)
+        status = "장마감 [주말 휴장]"
+    else:
+        # 평일 개장/마감 판별
+        if is_korean:
+            is_closed = now_kst.hour > 15 or (now_kst.hour == 15 and now_kst.minute >= 30)
+        else:
+            # 미국장: 한국시간 오전 7시 ~ 오후 10시 장 닫힘(개장 전)
+            is_closed = 7 <= now_kst.hour <= 22
+            
+        if is_closed:
+            if is_korean:
+                target = now_kst + timedelta(days=3) if now_kst.weekday() == 4 else now_kst + timedelta(days=1)
+                status = "장 마감"
+            else:
+                target = now_kst
+                status = "장 개장 전"
+        else:
+            if not is_korean and now_kst.hour < 7:
+                target = now_kst - timedelta(days=1)
+            else:
+                target = now_kst
+            status = "장 마감 전"
+            
+    long_label = f"{target.strftime('%Y-%m-%d')} 투자 리스크 예측 분석 결과 ({status})"
+    short_label = target.strftime("%m/%d")
+    return long_label, short_label
+
 
 # ── 페이지 설정 ──────────────────────────────────────
 st.set_page_config(
@@ -112,10 +156,22 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-# ── 사이드바 
+
+# ── 사이드바 ─────────────────────────────────────────
 with st.sidebar:
-    st.markdown("## 🛡️ 금융 리스크관리 AI 플랫폼")
-    st.markdown("---")
+    st.markdown(
+"""<div style='display: flex; align-items: center; gap: 14px; margin-bottom: 24px; padding-left: 5px;'>
+    <svg width="45" height="45" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0px 4px 6px rgba(56, 189, 248, 0.3));">
+        <path d="M20 4L7 9V18C7 26.5 12.5 34 20 37C27.5 34 33 26.5 33 18V9L20 4Z" fill="#1E293B" stroke="#F8FAFC" stroke-width="2.5" stroke-linejoin="round"/>
+        <polyline points="10,20 15,20 18.5,12 22.5,27 26,19 30,19" fill="none" stroke="#38BDF8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <div>
+        <div style='font-size: 40px; font-weight: 800; color: #38BDF8; letter-spacing: 2.0px; line-height: 1.1;'>RISKDOC</div>
+        <div style='font-size: 11px; font-weight: 600; color: #F8FAFC; letter-spacing: 0.5px;'>금융 자산 리스크 관리 플랫폼</div>
+    </div>
+</div>""", unsafe_allow_html=True)
+    
+    st.markdown("---")    
     
     st.markdown("### 종목")
     ticker_name = st.selectbox(
@@ -159,17 +215,49 @@ with st.sidebar:
 
 
 # ── 메인 콘텐츠 ───────────────────────────────────────
+# ⭐ 복구된 로직 적용! (상단용 긴 텍스트, 카드용 짧은 텍스트)
+long_date_label, short_date_label = get_prediction_info(ticker)
+
 st.markdown(f"<div class='page-title' style='font-size: 44px;'>{ticker_name.upper()}</div>", unsafe_allow_html=True)
+# 대제목 바로 아래에 세련된 연회색으로 날짜 안내 문구 삽입
+st.markdown(f"<div style='color: #94A3B8; font-size: 16px; margin-bottom: 24px; font-weight: 500; letter-spacing: -0.5px;'>🗓️ {long_date_label}</div>", unsafe_allow_html=True)
+
 
 # 데이터 로딩
 @st.cache_data(ttl=3600)
 def load_analysis(ticker: str, period: str, alpha: float, investment: float):
-    df = fetch_price_data(ticker, period=period)
+    long_df = fetch_price_data(ticker, period="5y")
+    long_indicators = calculate_all_indicators(long_df)
+
+    period_days_map = {
+        "1mo": 21,
+        "3mo": 63,
+        "6mo": 126,
+        "1y": 252,
+        "2y": 504,
+        "5y": 1260
+    }
+    days = period_days_map.get(period, 126) # 맵핑 안 되면 기본값 6개월
+
+    df = long_df.iloc[-days:]
+
     garch_res = fit_gjr_garch(df["log_return"])
     var_res = calculate_var_es(garch_res, df["Close"], alpha=alpha, investment=investment)
-    latest_df = fetch_price_data(ticker, period="1mo")
-    var_res.current_price = float(latest_df["Close"].iloc[-1])
-    indicators = calculate_all_indicators(df)
+    var_res.current_price = float(df["Close"].iloc[-1]) 
+
+    valid_dates = df.index
+    indicators = IndicatorResult(
+        rsi=long_indicators.rsi.loc[valid_dates],
+        sma_20=long_indicators.sma_20.loc[valid_dates],
+        sma_60=long_indicators.sma_60.loc[valid_dates],
+        ema_20=long_indicators.ema_20.loc[valid_dates],
+        bb_upper=long_indicators.bb_upper.loc[valid_dates],
+        bb_middle=long_indicators.bb_middle.loc[valid_dates],
+        bb_lower=long_indicators.bb_lower.loc[valid_dates],
+        golden_cross=long_indicators.golden_cross.loc[valid_dates],
+        volume=long_indicators.volume.loc[valid_dates],
+    )
+
     return df, garch_res, var_res, indicators
 
 with st.spinner("분석 중..."):
@@ -187,35 +275,41 @@ with col1:
     currency = "KRW" if ".KS" in ticker or ticker.startswith("^KS") else "USD"
     st.markdown(f"""
     <div class='metric-card'>
-        <div class='metric-label'>Closing Price</div>
+        <div class='metric-label'>조정 종가</div>
         <div class='metric-value'>{price_str} {currency}</div>
     </div>
     """, unsafe_allow_html=True)
 
+# 예측 날짜 라벨 (메트릭 카드용 짧은 버전)
+pred_label = short_date_label
+
+# col2 - Daily VaR
 with col2:
     var_pct = var_res.var_today * 100
     var_str = f"{var_pct:.2f}%"
     st.markdown(f"""
     <div class='metric-card'>
-        <div class='metric-label'>{confidence_label} Daily VaR</div>
+        <div class='metric-label'>최대 손실액(VaR)</div>
         <div class='metric-value negative'>{var_str}</div>
     </div>
     """, unsafe_allow_html=True)
 
+# col3 - ES
 with col3:
     es_pct = var_res.es_today * 100
     st.markdown(f"""
     <div class='metric-card'>
-        <div class='metric-label'>Expected Shortfall</div>
+        <div class='metric-label'>최대 평균 손실(ES)</div>
         <div class='metric-value negative'>{es_pct:.2f}%</div>
     </div>
     """, unsafe_allow_html=True)
 
+# col4 - Volatility
 with col4:
     vol_today = garch_res.forecast_volatility * 100
     st.markdown(f"""
     <div class='metric-card'>
-        <div class='metric-label'>Forecasted Volatility (σ)</div>
+        <div class='metric-label'>예측 변동성 (σ)</div>
         <div class='metric-value'>{vol_today:.2f}%</div>
     </div>
     """, unsafe_allow_html=True)
@@ -229,7 +323,16 @@ bb_signal = get_bb_signal(
     float(indicators.bb_lower.iloc[-1]),
 )
 vol_5d = float(garch_res.conditional_volatility.iloc[-5:].mean())
-vol_change = (float(garch_res.conditional_volatility.iloc[-1]) - vol_5d) / vol_5d * 100
+vol_change = (float(garch_res.forecast_volatility) - vol_5d) / vol_5d * 100
+
+# 골든크로스 신호 해석(챗봇에만 적용)
+golden_cross = int(indicators.golden_cross.iloc[-1])
+if golden_cross == 1:
+    cross_signal = "골든크로스 발생 (매수 신호)"
+elif golden_cross == -1:
+    cross_signal = "데드크로스 발생 (매도 신호)"
+else:
+    cross_signal = "신호 없음"
 summary = summarize_var(var_res, investment)
 
 st.markdown("---")
@@ -333,16 +436,32 @@ with right_col:
 
     chat_container = st.container(height=600)
 
-    if "current_ticker" not in st.session_state or st.session_state.current_ticker != ticker_name:
+    # 안전하게 세션 상태 확인 및 초기화: 종목/기간/신뢰수준/투자금이 바뀐 경우에만 환영 메시지로 초기화
+    need_reset = (
+        st.session_state.get("current_ticker") != ticker_name
+        or st.session_state.get("current_period") != period
+        or st.session_state.get("current_alpha") != alpha
+        or st.session_state.get("current_investment") != investment
+    )
+
+    if need_reset:
         st.session_state.current_ticker = ticker_name
-        
+        st.session_state.current_period = period
+        st.session_state.current_alpha = alpha
+        st.session_state.current_investment = investment
+
+        # VaR는 금액으로 표시(리뷰와 일치하도록)
+        loss_amount = float(investment) * abs(float(var_res.var_today))
         welcome_msg = (
             f"안녕하세요! 👋 **{ticker_name}**의 실시간 리스크 분석이 완료되었습니다.\n\n"
-            f"현재 **{confidence_label} 기준 예측 최대 손실(VaR)은 {var_res.var_today*100:.2f}%** 이며, "
+            f"현재 **{confidence_label} 기준 예측 최대 손실(VaR)은 약 {loss_amount:,.0f}원** 이며, "
             f"기술적 지표인 RSI는 **{rsi_val:.1f} ({rsi_signal})** 상태를 가리키고 있습니다.\n\n"
             f"이 수치가 의미하는 바가 무엇인지, 혹은 앞으로의 투자 리스크에 대해 궁금한 점이 있으시다면 편하게 질문해 주세요!"
         )
         st.session_state.messages = [{"role": "assistant", "content": welcome_msg}]
+    else:
+        # 기존 메시지 유지; messages 키가 없으면 빈 리스트로 초기화
+        st.session_state.setdefault("messages", [])
 
     with chat_container:
         for msg in st.session_state.messages:
@@ -351,7 +470,6 @@ with right_col:
 
     if prompt := st.chat_input("리스크 지표에 대해 질문하세요..."):
         st.session_state.messages.append({"role": "user", "content": prompt})
-
 
         with chat_container:
             with st.chat_message("user"):
@@ -371,19 +489,66 @@ with right_col:
 
                         client = genai.Client(api_key=api_key)
 
+                        vol_latest = float(indicators.volume.iloc[-1])
+                        sma20_latest = float(indicators.sma_20.iloc[-1])
+                        sma60_latest = float(indicators.sma_60.iloc[-1])
+                        ema20_latest = float(indicators.ema_20.iloc[-1])
+                        
+                        ranking_context = "랭킹 데이터가 현재 없습니다."
+                        if 'items' in locals() and items:
+                            ranking_context = "\n".join([f"- {it['rank']}위 {it['name']}: {it['vol_display']}, {it['var_display']}" for it in items])
+
                         context = f"""
 당신은 금융 리스크 분석 전문 AI 어시스턴트입니다.
+단기 매매 추천이 아니라, 제공된 수치 기반의 리스크 해석과 투자 판단 보조에 주요 초점을 둡니다.
+
 현재 분석 중인 종목: {ticker_name} ({ticker})
-현재 분석 데이터:
-- 현재 주가: {var_res.current_price:,.0f}
-- {confidence_label} VaR: {var_res.var_today*100:.2f}%
-- Expected Shortfall: {var_res.es_today*100:.2f}%
-- GARCH 변동성: {vol_today:.2f}%
-- RSI: {rsi_val:.1f} ({rsi_signal})
-- 볼린저 밴드: {bb_signal}
+
+[기본 설정 및 포지션]
+- 설정된 투자금: {investment:,.0f}원
 - 신뢰수준: {confidence_label} (α={alpha:.3f})
-사용자의 질문에 위 데이터를 바탕으로 쉽고 직관적인 한국어로 답변하세요.
-투자 손실에 대한 책임은 본인에게 있음을 적절히 안내하세요.
+- 분석 기간: {period_label}
+
+[주가 및 리스크 지표 (VaR/GARCH)]
+- 현재 주가: {var_res.current_price:,.0f}
+- {confidence_label} 예측 일별 최대 손실률(VaR): {var_res.var_today*100:.2f}% (약 {var_res.var_amount:,.0f}원)
+- 평균 손실(Expected Shortfall): {var_res.es_today*100:.2f}% (약 {var_res.es_amount:,.0f}원)
+- GARCH 예측 변동성 (Forecasted Volatility): {vol_today:.2f}%
+
+[기술적 지표 (Technical Indicators)]
+- RSI (상대강도지수): {rsi_val:.1f} ({rsi_signal})
+- 볼린저 밴드: {bb_signal}
+- 이동평균선(SMA 20일): {sma20_latest:,.0f}
+- 이동평균선(SMA 60일): {sma60_latest:,.0f}
+- 지수이동평균선(EMA 20일): {ema20_latest:,.0f}
+- 최근 1일 거래량: {vol_latest:,.0f}
+
+[현재 시장 고위험 종목 TOP 3 랭킹]
+{ranking_context}
+
+[답변 방식 - 단계적 분석]
+아래 분석 절차를 내부적으로 따른 뒤, 최종 답변에는 핵심 근거와 결론만 간결하게 제시하세요.
+
+1단계 - 질문 파악:
+사용자가 묻는 핵심이 무엇인지 파악하세요.
+
+2단계 - 데이터 선택 및 해석:
+위 리스크 지표 중 질문과 관련된 지표를 이용해 해석하세요.
+질문과 관련 없는 지표는 억지로 모두 설명하지 마세요.
+
+3단계 - 종합 판단:
+선택한 지표들을 종합하여 현재 리스크 수준을 객관적으로 판단하세요.
+
+4단계 - 쉬운 설명:
+전문 용어를 최소화하고 일반 투자자도 이해할 수 있는 쉬운 한국어로 설명하세요.
+
+[제약 조건]
+"에 투자하세요", "를 매수/매도하세요" 처럼 결정론적인 투자 판단은 하지 마세요.
+특정 행동을 지시하지 말고, 사용자가 점검할 수 있는 리스크 요인을 제시하세요.
+제공된 수치는 과거 데이터와 모형 기반 추정치이며, 미래 손실을 확정적으로 예측하지 않습니다.
+
+[답변 마지막 고정 문구]
+⚠️ 본 해석은 의사결정 보조 도구이며 투자 손실에 대한 책임은 본인에게 있습니다.
                         """
 
                         history = []
