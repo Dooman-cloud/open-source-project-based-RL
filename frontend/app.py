@@ -156,10 +156,22 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-# ── 사이드바 
+
+# ── 사이드바 ─────────────────────────────────────────
 with st.sidebar:
-    st.markdown("## 🛡️ 금융 리스크관리 AI 플랫폼")
-    st.markdown("---")
+    st.markdown(
+"""<div style='display: flex; align-items: center; gap: 14px; margin-bottom: 24px; padding-left: 5px;'>
+    <svg width="45" height="45" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0px 4px 6px rgba(56, 189, 248, 0.3));">
+        <path d="M20 4L7 9V18C7 26.5 12.5 34 20 37C27.5 34 33 26.5 33 18V9L20 4Z" fill="#1E293B" stroke="#F8FAFC" stroke-width="2.5" stroke-linejoin="round"/>
+        <polyline points="10,20 15,20 18.5,12 22.5,27 26,19 30,19" fill="none" stroke="#38BDF8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <div>
+        <div style='font-size: 40px; font-weight: 800; color: #38BDF8; letter-spacing: 2.0px; line-height: 1.1;'>RISKDOC</div>
+        <div style='font-size: 11px; font-weight: 600; color: #F8FAFC; letter-spacing: 0.5px;'>금융 자산 리스크 관리 플랫폼</div>
+    </div>
+</div>""", unsafe_allow_html=True)
+    
+    st.markdown("---")    
     
     st.markdown("### 종목")
     ticker_name = st.selectbox(
