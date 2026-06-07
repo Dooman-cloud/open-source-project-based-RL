@@ -220,12 +220,24 @@ with right_col:
     st.markdown("#### 📋 Today's Risk Ranking")
 
     @st.cache_data(ttl=3600)
-    def get_ranking(alpha, period):
-        return compute_risk_ranking(alpha, period)
+    def get_ranking(alpha, period, investment, precomputed: dict):
+        return compute_risk_ranking(alpha, period, investment, precomputed)
+
+    # 현재 종목 결과 딕셔너리로 만들기
+    precomputed = {
+        "ticker": ticker,
+        "current_price": var_res.current_price,
+        "var_today": var_res.var_today,
+        "var_amount": var_res.var_amount,
+        "volatility_today": garch_res.forecast_volatility,
+        "volatility_5d_avg": vol_5d,
+        "vol_change_pct": vol_change,
+        "vol_change_5d_pct": (garch_res.forecast_volatility - vol_5d) / vol_5d * 100,
+    }
 
     with st.spinner("랭킹 계산 중..."):
         try:
-            ranking = get_ranking(alpha,period)
+            ranking = get_ranking(alpha, period, investment, precomputed)
             items = format_ranking_for_display(ranking, top_n=3)
             for item in items:
                 color_class = "risk-card" if item["is_high_risk"] else "risk-card medium"

@@ -27,26 +27,48 @@ class StockRiskSummary:
     vol_change_5d_pct: float  # 5일 평균 대비 변동성 변화율 (%)
 
 
-def compute_risk_ranking(alpha: float = 0.01,period: str = "6mo") -> list[StockRiskSummary]:
-    """
-    모든 종목 리스크 계산 후 변동성 기준 랭킹 반환
-    
-    Returns:
-        변동성 높은 순으로 정렬된 StockRiskSummary 리스트
-    """
+def compute_risk_ranking(
+    alpha: float = 0.01,
+    period: str = "6mo",
+    investment: float = 10_000_000,
+    precomputed: dict = None,  # ← 추가
+) -> list[StockRiskSummary]:
+
+    period_days_map = {
+        "1mo": 21, "3mo": 63, "6mo": 126,
+        "1y": 252, "2y": 504, "5y": 1260
+    }
+    days = period_days_map.get(period, 126)
     summaries = []
-    
+
     for name, ticker in TICKERS.items():
         try:
-            df = fetch_price_data(ticker, period=period)
+            # 현재 종목은 넘겨받은 결과 사용
+            if precomputed and ticker == precomputed["ticker"]:
+                summaries.append(StockRiskSummary(
+                    name=name,
+                    ticker=ticker,
+                    current_price=precomputed["current_price"],
+                    var_today=precomputed["var_today"],
+                    var_amount=precomputed["var_amount"],
+                    volatility_today=precomputed["volatility_today"],
+                    volatility_5d_avg=precomputed["volatility_5d_avg"],
+                    vol_change_pct=precomputed["vol_change_pct"],
+                    vol_change_5d_pct=precomputed["vol_change_5d_pct"],
+                ))
+                continue  # 나머지 계산 건너뜀
+
+            # 나머지 종목은 새로 계산
+            long_df = fetch_price_data(ticker, period="5y")
+            df = long_df.iloc[-days:]
             garch_res = fit_gjr_garch(df["log_return"])
-            var_res = calculate_var_es(garch_res, df["Close"], alpha=alpha)
-            
+            var_res = calculate_var_es(garch_res, df["Close"], alpha=alpha, investment=investment)
+
             vol = garch_res.conditional_volatility
-            vol_today = garch_res.forecast_volatility        # 오늘 예측값으로 변경
-            vol_prev = float(vol.iloc[-1])                   # 어제 추정값
-            vol_5d_avg = float(vol.iloc[-5:].mean())         # 최근 5일 평균
-            
+            vol_today = garch_res.forecast_volatility
+            vol_prev = float(vol.iloc[-1])
+            vol_5d_avg = float(vol.iloc[-5:].mean())
+
             summaries.append(StockRiskSummary(
                 name=name,
                 ticker=ticker,
@@ -59,9 +81,8 @@ def compute_risk_ranking(alpha: float = 0.01,period: str = "6mo") -> list[StockR
             ))
         except Exception as e:
             print(f"[RANKING] {name} 건너뜀: {e}")
-    
-    # 변동성 크기 기준 내림차순 정렬
-    summaries.sort(key=lambda x: x.volatility_today, reverse=True)
+
+    summaries.sort(key=lambda x: abs(x.var_amount), reverse=True)
     return summaries
 
 
