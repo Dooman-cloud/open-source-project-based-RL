@@ -11,12 +11,7 @@ GJR-GARCH와 Student-t VaR/ES로 일별 리스크를 산출하고, Streamlit 대
 
 ## 시연 영상
 
-
-
-
-
-Uploading RISKDOC_시연영상.mp4…
-
+https://github.com/user-attachments/assets/eeea2524-5384-4876-a514-6429bf1ae8a8
 
 ---
 ## 문서
