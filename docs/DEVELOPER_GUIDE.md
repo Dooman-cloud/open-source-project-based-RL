@@ -206,13 +206,8 @@ Fallback: yfinance 실패 → 만료 CSV → 결정적 합성 OHLCV (`_generate_
 
 슬라이더 90.0~99.9% (0.1% 단계). README의 고정 α=0.01/0.05 방식은 **구버전**.
 
-### 7.3 코딩 관례
 
-- dataclass 결과 객체 (`GARCHResult`, `VaRResult`, `IndicatorResult`)
-- `sys.path.append`로 프로젝트 루트 import
-- 모듈별 `if __name__ == "__main__"` 스모크 테스트 가능
-
-### 7.4 확장 시 병목
+### 7.3 확장 시 병목
 
 종목 수 증가 → 랭킹 루프 GARCH 비용 선형 증가. 대규모 확장 시 DB·배치 처리 검토.
 
@@ -241,12 +236,12 @@ python backend/utils/risk_ranking.py
 | 브랜치           | 용도                     |
 | ------------- | ---------------------- |
 | `main`        | 최종 배포                  |
-| `valid`       | 백엔드 작업                 |
-| `valid_front` | 프론트 작업                 |
-| `dev`         | CI 트리거 (README와 병행 사용) |
+| `backend`     | 백엔드 작업                 |
+| `UI`          | 프론트 작업                 |
 
 
-작업 → `valid`/`valid_front` → `main` merge.
+
+작업 → `backend / UI` → `main` merge.
 
 ### 8.4 환경 변수
 
@@ -269,8 +264,6 @@ python backend/utils/risk_ranking.py
 | 랭킹 지연        | 9종목 순차 GARCH — 캐시 미스 시 수십 초      |
 | Python 버전    | Dockerfile 3.9 vs CI/README 3.11 |
 | 인증·DB 없음     | 세션 종료 시 챗봇 이력 소실                 |
-| 투자 조언        | 챗봇은 리스크 해석만, 매매 지시 금지 프롬프트       |
-
 
 ---
 
