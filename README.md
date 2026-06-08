@@ -1,573 +1,169 @@
+# RISKDOC
 
-# 통계-AI 모델 기반 일 별 금융 자산 리스크 관리 플랫폼
+**통계·AI 모델 기반 일별 금융 자산 리스크 관리 플랫폼**
 
-## 0. 서비스 시연 영상
+GJR-GARCH와 Student-t VaR/ES로 일별 리스크를 산출하고, Streamlit 대시보드와 Gemini 챗봇으로 개인 투자자가 이해하기 쉽게 제공하는 오픈소스 웹 서비스입니다.
 
-https://github.com/user-attachments/assets/b6b7a081-a85f-42b6-8673-9ab3ac7cb589
+> ⚠️ 본 서비스는 **의사결정 보조 도구**이며 투자 손실에 대한 책임은 이용자 본인에게 있습니다.  
+> VaR·ES 수치는 통계 모델이 산출하며, 챗봇(Gemini)은 해석 보조에만 사용됩니다.
 
+---
 
-## 1. 프로젝트 배경
+## 시연 영상
 
-#### **기존 서비스의 한계**
-
-금융 리스크 분석은 RSI, MA 등 통계적 기술 지표에 의존하는 경우가 많으며, 이러한 수치는 일반적인 개인 투자자가 쉽고 직관적으로 이해할 수 없다.
-
-AI 기반(RL, DL 등) 리스크 예측 일반화 모델은 금융 시계열 데이터의 비정상성과 종목 간 이질성과 같은 challenging point로 인해 모델의 방대한 학습 시간, 막대한 자원, 데이터 센터와 GPU 등의 고급 하드웨어를 필요로 한다. 이 일반화 모델을 실시간으로 운용하기 위한 재학습 비용은 천문학적일 뿐 아니라 운용이 된다고 가정해도 모델이 BlackBox이기 때문에 그 결과의 해석력도 매우 낮다.
-
-#### **서비스 개요**
-
-본 서비스는 통계 모델을 기반으로 주가 리스크를 분석하여 해석력을 높이고, 그 결과를 챗봇과 직관적인 UI를 활용하여 **사용자가 쉽게 이해할 수 있는 형태로 제공하는 실용적인 금융 리스크 관리 서비스를 구축**하는 것을 목표로 한다.
+---
+## 문서
 
 
-## 2. 주요 기능
+| 문서                                                 | 설명      |
+| -------------------------------------------------- | ------- |
+| [docs/USER_GUIDE.md](docs/USER_GUIDE.md)           | 사용자 가이드 |
+| [docs/DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md) | 개발자 가이드 |
+| [docs/최종보고서.md](docs/최종보고서.md)                     | 최종 보고서  |
 
-#### 1) VaR 기반 리스크 대시보드
-
-- **Stock Price with GARCH VaR Chart**
-주가 차트 위에 VaR 라인을 오버레이하여 시각화
-
-- **Volatility Chart**
- 추정된 변동성(σ)을 차트로 제공
-
-- **Statistical Indicator Chart**
-RSI, MA, BB  등 기본 보조 지표 제공 (보조 역할)
+---
+## 주요 기능
 
 
-#### 2) 리스크 랭킹 시스템
-
-높은 위험성 상위 종목 3개 디스플레이함으로 사용자가 현재 고위험군 종목을 빠르게 파악 가능
-
-ex)
-
-- 분산 변동성이 큰 종목
-- VaR이 큰 종목
-
-#### 3) 챗봇 리스크 해석 서비스
-
-VaR/주가 변동성 등 리스크 분석 결과에 대한 지표를 쉽게 이해할 수 있는 자연어로 설명. 
-
-**ex 1)**
-
-**사용자**: “내일 KOSPI 200 손실액 분석”
-
-**챗봇**: “KOSPI 200의 ES(Expected Shortfall)영역을 보면, 평균 손실액이 전일 대비 1.8% 증가하여 자본 운영에 대한 주의가 필요합니다. 해당 종목 포트폴리오 비중을 5% 이상 낮추는 것을 권장합니다.”
+| 기능               | 설명                                       |
+| ---------------- | ---------------------------------------- |
+| **VaR 대시보드**     | 조정 종가, 예측 VaR·ES, 예측 변동성(σ) 메트릭 + AI 리포트 |
+| **차트 3종**        | 주가+VaR 오버레이, GARCH 변동성, RSI·MA·BB·거래량    |
+| **손실 고위험 TOP 3** | 10개 종목 중 예측 VaR 손실액(원) 상위 3개 랭킹          |
+| **AI 챗봇**        | `gemini-2.5-flash` + CoT 프롬프트, 매매 지시 금지  |
+| **투자 옵션**        | 신뢰수준 90.0~99.9%, 분석 기간, 투자금, 10종목 선택     |
+| **장마감 인지**       | 한국/미국 장 상태·예측일 라벨, 장마감 기준 CSV 캐시         |
 
 
-#### 4) 투자 옵션 설정 기능
+---
 
-사용자가 분석 기간, 종목, 투자 금액, VaR 최대 손실액 신뢰수준 조정가능
+## 빠른 시작
 
+### 요구사항
 
-#### 5) VaR예측 을 통한 결과 제공
+- Python **3.11+** (권장) · pip · (선택) Docker
+- [Gemini API 키](https://aistudio.google.com/apikey) — 챗봇 사용 시
 
-- 자본 대비 VaR 설명:
+### 로컬 실행
 
-→ VaR: -3.2% (95%) : 유의수준 5%로 투자금 1,000만원 기준 약 32만원 손실 가능
+```bash
+git clone <repository-url>
+cd risk_management_platform
 
-- 리스크 변화:
-
-→ 전일 대비 +18% 증가
-
-→ 최근 5일 평균 대비 +25%
-
-## 개발자 가이드
-
-### 1. 환경 설정
-
-**Python 설치**
-
-- Python 3.11 이상 필요
-
-**가상환경 생성 및 활성화**
-
-- Windows:
 python -m venv venv
-venv\Scripts\activate
-- Mac/Linux:
-python -m venv venv
-source venv/bin/activate
+# Windows: venv\Scripts\activate
+# Mac/Linux: source venv/bin/activate
 
-**라이브러리 설치**
 pip install -r requirements.txt
+```
 
-주요 라이브러리:
+프로젝트 루트에 `.env` 파일 생성:
 
-- yfinance==0.2.54 # 주가 데이터 수집
-- arch==7.2.0 # GARCH 모델링
-- numpy==1.26.4 # 수학 계산
-- scipy==1.13.0 # 통계 계산
-- pandas==2.2.2 # 데이터 처리
-- streamlit==1.45.0 # UI 프레임워크
-- plotly==5.22.0 # 인터랙티브 차트
-- google-genai==1.47.0 # Gemini 챗봇 API
-- python-dotenv==1.0.1 # 환경변수 관리
-- schedule==1.2.2 # 자동 계산 스케줄러
+```env
+GEMINI_API_KEY=발급받은_API_키
+```
 
----
-
-### 2. API 키 설정
-
-Gemini API 키 발급:
-
-1. https://ai.google.dev/aistudio?hl=ko접속
-2. 로그인
-3. API Keys → Create API Key
-
-.env 파일 설정:
-프로젝트 루트에 .env 파일 생성 후 아래 내용 입력
-GEMINI_API_KEY=발급받은_API_키_입력
-
----
-
-### 3. 실행 방법
-
-**로컬 실행**
-가상환경 활성화 후:
+```bash
 streamlit run frontend/app.py
-→ 브라우저에서 http://localhost:8501 접속
+```
 
-**Docker 실행**
+브라우저에서 **[http://localhost:8501](http://localhost:8501)** 접속
 
-1. Docker Desktop 설치
-https://www.docker.com/products/docker-desktop
-2. .env 파일에 API 키 설정
-3. 빌드 및 실행
+### Docker 실행
+
+```bash
 docker compose up --build
-→ 브라우저에서 http://localhost:8501 접속
-4. 종료
-docker compose down
+docker compose down   # 종료
+```
 
 ---
 
-### 4. 프로젝트 구조
+## 기술 스택
 
+
+| 영역     | 기술                                                            |
+| ------ | ------------------------------------------------------------- |
+| UI     | Streamlit 1.45, Plotly 5.22, 다크 테마 (`.streamlit/config.toml`) |
+| 데이터    | yfinance, pandas, CSV 파일 캐시                                   |
+| 리스크 모델 | GJR-GARCH(1,1), Student-t VaR/ES (`arch`, `scipy`)            |
+| 보조 지표  | RSI, SMA, Bollinger Bands, Golden Cross                       |
+| AI 챗봇  | google-genai (Gemini 2.5 Flash)                               |
+| 배포     | Docker Compose (`riskdoc-app`, 포트 8501)                       |
+| CI     | GitHub Actions — import 검증 + Docker build (`dev`, `main`)     |
+
+
+---
+
+## 프로젝트 구조
+
+```
 risk_management_platform/
-│
-├── .github/
-│   └── workflows/
-│       └── ci.yml              # GitHub Actions CI
-│
+├── .github/workflows/ci.yml
+├── .streamlit/config.toml
 ├── backend/
-│   ├── data/
-│   │   ├── __init__.py
-│   │   ├── fetcher.py          # yfinance 데이터 수집 + 캐싱
-│   │   └── cache/              # 캐싱된 CSV 파일들
+│   ├── data/fetcher.py          # TICKERS, yfinance, 장마감 캐시
 │   ├── models/
-│   │   ├── __init__.py
-│   │   ├── garch_model.py      # GJR-GARCH 변동성 모델
-│   │   └── var_calculator.py   # VaR, ES 계산
+│   │   ├── garch_model.py       # GJR-GARCH(1,1)
+│   │   └── var_calculator.py    # VaR, ES
 │   └── utils/
-│       ├── __init__.py
-│       ├── indicators.py       # RSI, MA, BB, Golden Cross
-│       └── risk_ranking.py     # 리스크 랭킹 시스템
-│
-├── docker/
-│   └── Dockerfile
-│
+│       ├── indicators.py
+│       └── risk_ranking.py      # precomputed 최적화
 ├── frontend/
-│   ├── components/
-│   │   ├── __init__.py
-│   │   └── charts.py           # Plotly 차트 컴포넌트
-│   │   
-│   ├── __init__.py
-│   └── app.py                  # Streamlit 메인 앱
-│
-├── .streamlit/
-│   ├── config.toml #다크 테마 기본 설정 
-│
-├── .gitignore
+│   ├── app.py                   # Streamlit 메인 (~590줄)
+│   └── components/charts.py
+├── docker/Dockerfile
 ├── docker-compose.yml
-├── README.md
-└── requirements.txt
+├── docs/                        # 가이드·최종보고서
+├── requirements.txt
+└── README.md
+```
 
 ---
 
-### 5. 브랜치 전략
+## 지원 종목 (10)
 
-브랜치 구조:
-main         ← 최종 배포 브랜치
-valid        ← 백엔드 위주 오류 작업 브랜치
-valid_front  ← 프론트엔드 위주 오류 작업 브랜치
 
-작업 순서:
+| 종목                              | 티커                       |
+| ------------------------------- | ------------------------ |
+| 삼성전자, SK하이닉스, NAVER, KAKAO, 현대차 | `*.KS`                   |
+| Apple, Tesla                    | `AAPL`, `TSLA`           |
+| S&P 500, KOSPI 200, Gold        | `^GSPC`, `^KS11`, `GC=F` |
 
-1. valid 또는 valid_front 에서 작업
-2. 완성 후 main으로 merge
 
 ---
 
-### 6. 데이터 흐름
 
-yfinance (인터넷)
-↓ 일별 주가 데이터 수집
-fetcher.py
-↓ 로그수익률 계산 + CSV 캐싱
-│
-├── garch_model.py
-│       ↓ GJR-GARCH 변동성 추정
-│   var_calculator.py
-│       ↓ 예측한 변동성으로 VaR, ES 계산
-│
-└── indicators.py
-↓ RSI, MA, BB, 골든크로스 계산
 
-app.py
-↓ 두 결과 합쳐서 화면 구성
-│
-├── risk_ranking.py (전체 종목 리스크 랭킹)
-├── Streamlit UI (대시보드, AI 리포트)
-└── Plotly 차트
-↓
-브라우저 화면
+## 데이터 흐름 (요약)
+
+```
+yfinance → fetcher.py (로그수익률, CSV 캐시)
+              ├→ garch_model.py → var_calculator.py (VaR/ES)
+              └→ indicators.py (RSI, MA, BB)
+app.py → 차트 · AI 리포트 · risk_ranking (TOP 3) · Gemini 챗봇
+```
+
+- **분석**: 5년 OHLCV로 기술지표 계산 → 사용자 선택 기간만 슬라이스 후 GARCH/VaR
+- **캐시**: `@st.cache_data(ttl=3600)` + 장마감 기준 CSV (`backend/data/cache/`)
 
 ---
 
-### 7. 모델 설명
+## 브랜치 전략
 
-**GJR-GARCH(1,1)**
 
-- 시계열 데이터의 조건부 변동성 추정 모델
-- 일반 GARCH 대비 하락 충격에 더 민감하게 반응
-- 주식 시장의 하락 시 변동성 급등 특성 반영
-- t-분포 사용으로 극단적 손실 사건 적절히 반영
+| 브랜치           | 용도       |
+| ------------- | -------- |
+| `main`        | 최종 배포    |
+| `valid`       | 백엔드 작업   |
+| `valid_front` | 프론트엔드 작업 |
+| `dev`         | CI 트리거   |
 
-변동성 수식:
-σ²_t = ω + α·ε²_t-1 + γ· I_t-1· ε²_t-1+ β·σ²_t-1
 
-ω  = 기본 변동성
-α  = 전날 충격 영향
-γ  = 하락 충격 추가 반응 (GJR 핵심)
-β  = 전날 변동성 지속성
-I  = 1 (하락), 0 (상승)
-
-**VaR (Value at Risk)**
-
-- 특정 신뢰수준에서 예상되는 최대 손실 한도
-
-수식:
-수익률의 평균은 0으로 가정
-VaR_t = z_α × σ_t
-
-z_α = 분포 분위수
-99% 신뢰 (α=0.01) → t ≈ -2.63
-95% 신뢰 (α=0.05) → t ≈ -1.65
-σ_t = GARCH 예측 변동성
-
-예시:
-1일 99% VaR = -3%
-→ 내일 손실이 3% 이하일 확률 99%
-→ 투자금 1,000만원 기준 최대 손실 30만원
-
-**ES (Expected Shortfall)**
-
-- VaR 초과 손실 발생 시 평균 손실액
-- VaR보다 보수적인 꼬리 리스크 지표
-
-수식:
-ES = -(f(z_α) / α) × (ν + z²_α) / (ν - 1) × σ_t
-
-예시:
-1일 99% ES = -5%
-→ 최악의 1% 상황에서 평균 손실 5%
-
-**챗봇 (Gemini API)**         
-- 사용 모델: gemini-2.5-flash
-- 프롬프팅 기법: CoT (Chain of Thought)
-- CoT 4단계:
-  1단계: 질문 파악
-  2단계: 데이터 해석
-  3단계: 종합 판단
-  4단계: 쉬운 설명
-- 결정론적 투자 판단 금지
+`valid` 또는 `valid_front`에서 작업 후 `main`으로 merge합니다.
 
 ---
 
-### 8. 캐싱 구조
+## 개발 참고
 
--**CSV 파일 캐싱**
-- 위치: backend/data/cache/
-- 파일명: {ticker}_{period}.csv
-  예시: 005930_KS_6mo.csv
-- 유효기간: 장마감 기준
-- 한국 종목: 오후 3시 30분 이후 캐시 자동 무효화
-- 해외 종목: 오전 6시 (KST) 이후 캐시 자동 무효화
-- 장마감 후 앱 접속 시 자동으로 새 데이터 수집
-- 주말은 마지막 거래일(금요일) 장마감 기준 적용
-- 현재 주가는 항상 최신 1개월 데이터에서 별도로 수집
-
-**Streamlit 캐싱**
-
-- @st.cache_data(ttl=3600) 사용
-- 동일한 종목/기간/투자성향 선택 시 재계산 없이 즉시 반환
-- 1시간마다 갱신
-
-**캐시 삭제 방법**
-backend/data/cache/ 폴더 안의 CSV 파일 삭제 후 재실행
-
----
-
-### 9. 주의사항
-
-.env 파일 관련:
-
-- .env 파일은 절대 GitHub에 커밋하지 말 것
-- .gitignore에 등록되어 있으나 주의 필요
-- API 키 유출 시 즉시 재발급 필요
-
-cache 폴더 관련:
-
-- backend/data/cache/ 폴더는 .gitignore에 등록됨
-- 캐시 파일은 로컬에만 저장
-- 네트워크 오류 시 샘플 데이터로 대체 실행됨
-
-기타:
-
-- 분석 기간 변경 시 새로운 캐시 파일 생성됨
-- 투자 손실에 대한 책임은 본인에게 있음
-
-### 10. 확장 가이드
-
-**종목 추가 방법**
-fetcher.py의 TICKERS 딕셔너리에 추가:
-
-TICKERS = {
-"기존 종목": "기존 티커",
-...
-"LG전자": "066570.KS",    # 추가 예시
-"Microsoft": "MSFT",      # 추가 예시
-}
-
-yfinance에서 지원하는 모든 티커 사용 가능
-
-**종목 확장 시 한계점**
-
-현재 CSV 캐싱 구조의 한계:
-
-- 종목 수가 많아질수록 랭킹 계산 시
-전체 종목 GARCH 모델 계산으로 속도 저하 발생
-- CSV 파일 기반이라 대량 데이터 관리 어려움
-
-대규모 서비스 확장 시 DB 도입 권장
-## 사용자 가이드
-### 1. 서비스 소개
-
-본 서비스는 통계 모델(GJR-GARCH)을 기반으로 주가 리스크를 분석하고,
-그 결과를 직관적인 UI와 AI 챗봇을 통해 개인 투자자가 쉽게 이해할 수 있는
-형태로 제공하는 금융 리스크 관리 플랫폼입니다.
-
-주요 제공 정보:
-
-- 오늘 예측 VaR (최대 손실 예상액)
-- 오늘 예측 ES (VaR 초과 시 평균 손실)
-- 오늘 예측 변동성
-- 세부 기술적 지표 분석 (RSI, 볼린저 밴드, 변동성 추이)
-- 리스크 랭킹 (전체 종목 중 최대손실액(VaR) TOP 3)
-- AI 챗봇 리스크 해석
-
----
-
-### 2. 화면 구성
-
-**사이드바**
-
-| 설정 | 설명 | 옵션 |
-| --- | --- | --- |
-| 종목 선택 | 분석할 주식 종목 선택 | 10개 종목 지원 |
-| 신뢰수준 | VaR 신뢰수준 슬라이더 설정 | 90.0% ~ 99.9% |
-| 분석 기간 | 데이터 분석 기간 설정 | 1주 ~ 5년 |
-| 투자금 | 손실액 계산 기준 금액 | 직접 입력 (기본값 1,000만원) |
-
-신뢰수준 설정 가이드:
-
-- 신뢰수준이 높을수록 더 보수적인 리스크 추정
-- 99% 신뢰수준: 투자 손실액이 예측치를 초과할 확률이 1%
-- 95% 신뢰수준: 투자 손실액이 예측치를 초과할 확률이 5%
-- 안정적 투자 성향 → 높은 신뢰수준 (99% 이상) 권장
-- 공격적 투자 성향 → 낮은 신뢰수준 (95% 내외) 권장
-
-**상단 메트릭 카드**
-
-| 카드 | 설명 |
-| --- | --- |
-| Closing Price | 가장 최근 종가 |
-| Daily VaR | 오늘 예측 최대 손실률 |
-| Expected Shortfall | 예측 VaR 초과 시 평균 손실률 |
-| Forecasted Volatility | 오늘 예측 변동성
-(어제 변동성 - 오늘 예측 변동성)  |
-
-예시:
-
-- Closing Price: 360,500 KRW
-- 99% Daily VaR: -15.00%
-→ 내일 손실이 15% 이하일 확률 99%
-→ 투자금 1,000만원 기준 최대 150만원 손실 가능
-- Expected Shortfall: -18.84%
-→ 최악의 1% 상황에서 평균 손실 18.84%
-- Forecasted Volatility: 5.02%
-→ 오늘 예측 변동성 5.02%
-
-**AI 리포트 요약**
-
-현재 선택한 종목의 분석 결과를 자연어로 요약 제공
-
-- VaR, ES 수치를 투자금 기준 손실액(원)으로 직관적으로 표현
-
-세부 기술적 지표 분석:
-
-- RSI: 현재 수치와 시장 상태(과매수/과매도/중립) 및 해석 제공
-- 볼린저 밴드: 현재 주가 위치와 의미 제공
-- 단기 변동성 추이: 최근 5일 평균 대비 오늘 예측 변동성 변화율
-
-**손실 고위험 종목 TOP 3**
-
-전체 지원 종목 중 오늘 예측 변동성 변화율 기준 상위 3개 종목 표시
-
-| 색상 | 의미 |
-| --- | --- |
-| 빨간 테두리 | 고위험 (변동성 변화율 10% 초과 또는 VaR 3% 초과) |
-| 노란 테두리 | 중간 위험 |
-
-표시 정보:
-
-- 종목명
-- 오늘 예측 변동성 변화율
-- VaR 최대 손실 예상액 (원)
-
-**차트**
-
-주가 + VaR 차트:
-
-- 파란선: 실제 주가
-- 빨간 점선: VaR 손실 수준
-- 두 선의 간격이 넓을수록 리스크 높음
-
-변동성 차트:
-
-- GARCH로 추정한 일별 변동성
-- 점선: 전체 기간 평균 변동성
-- 평균선 위로 올라갈수록 변동성 높음
-
-기술 지표 차트:
-
-- Row 1: 주가 + 이동평균(SMA 20, SMA 60) + 볼린저 밴드
-- Row 2: RSI (70선: 과매수, 30선: 과매도)
-- Row 3: 거래량
-
-**금융 리스크 분석 전문 AI 어시스턴트**
-
-- 종목 변경 시 자동으로 현재 분석 결과 요약 및 인사말 출력
-- 현재 분석 중인 종목의 데이터를 기반으로 질문에 답변
-
-사용 예시:
-
-- "현재 삼성전자 리스크 어때?"
-- "VaR이 높은데 어떻게 해야 해?"
-- "RSI 77이면 어떤 상황이야?"
-- "볼린저 밴드 상단 돌파가 무슨 의미야?"
-- "투자금 1000만원 기준 최대 손실은 얼마야?"
-
----
-
----
-
-### 3. 지표 해석
-
-**VaR (Value at Risk, 위험 가치)**
-
-정상적인 금융 시장에서 발생할 수 있는 
-최대 손실액을 통계적으로 산출한 시장 리스크 지표
-
-예시:
-1일 99% VaR = -3%
-→ 내일 손실이 3% 이하일 확률 99%
-→ 100일 중 1일은 3% 이상 손실 가능
-→ 투자금 1,000만원 기준 최대 손실 30만원
-
-**ES (Expected Shortfall, 기대 손실)**
-
-손실이 VaR을 초과했을 때 그 초과분들의 평균 손실액
-VaR보다 보수적인 꼬리 리스크 지표
-
-예시:
-1일 99% ES = -5%
-→ 최악의 1% 상황에서 평균 손실 5%
-→ VaR(-3%)보다 더 보수적인 수치
-
-**변동성 (Forecasted Volatility)**
-
-GJR-GARCH 모델로 예측한 오늘의 변동성
-어제 종가까지의 데이터를 기반으로 오늘 변동성을 예측한 값
-
-해석:
-
-- 변동성 높음 → 주가 급등락 가능성 높음 → 리스크 높음
-- 변동성 낮음 → 주가 안정적 → 리스크 낮음
-
-**예측 변동성 변화율**
-
-오늘 예측 변동성과 어제 추정 변동성의 차이율
-
-수식:
-변화율 = (오늘 예측 변동성 - 어제 추정 변동성) / 어제 추정 변동성 × 100
-
-해석:
-+20% → 어제 대비 변동성 20% 증가 
--20% → 어제 대비 변동성 20% 감소 
-
-**RSI (Relative Strength Index, 상대강도지수)**
-
-일정 기간 동안 주가 상승/하락 변화량을 비교한 모멘텀 지표
-0~100 사이 값, 기본 설정 14일
-
-| 구간 | 시장 상태 | 의미 |
-| --- | --- | --- |
-| 70 이상 | 과매수 | 매수세 과도 → 하락 가능성 |
-| 30 이하 | 과매도 | 매도세 과도 → 상승 가능성 |
-| 50 근처 | 중립 | 상승/하락 균형 |
-
-**볼린저 밴드 (Bollinger Bands)**
-
-20일 이동평균선을 기준으로 상단/하단 밴드로 구성
-
-구성:
-
-- 중심선: 20일 SMA
-- 상단 밴드: 중심선 + 2σ
-- 하단 밴드: 중심선 - 2σ
-
-해석:
-
-- 주가가 상단 밴드 터치 → 과매수 (하락 가능)
-- 주가가 하단 밴드 터치 → 과매도 (상승 가능)
-- 밴드 폭 확대 → 변동성 증가 신호
-
----
-
-### 4. 지원 종목
-
-| 종목 | 티커 | 시장 |
-| --- | --- | --- |
-| 삼성전자 | 005930.KS | KOSPI |
-| SK하이닉스 | 000660.KS | KOSPI |
-| NAVER | 035420.KS | KOSPI |
-| KAKAO | 035720.KS | KOSPI |
-| 현대차 | 005380.KS | KOSPI |
-| Apple | AAPL | NASDAQ |
-| Tesla | TSLA | NASDAQ |
-| S&P 500 | ^GSPC | INDEX |
-| KOSPI 200 | ^KS11 | INDEX |
-| Gold | GC=F | COMMODITY |
-
----
-
-### 5. 주의사항
-
-본 서비스 이용 시 반드시 아래 사항을 숙지하세요.
-
-- 본 서비스는 의사결정 보조 도구이며 절대적인 투자 신호가 아닙니다.
-- 투자 손실에 대한 책임은 전적으로 본인에게 있습니다.
-- 제공되는 모든 지표는 과거 데이터 기반의 통계적 추정값입니다.
-- 실제 시장 상황에 따라 예측값과 다를 수 있습니다.
-- 금융 전문가와 상담 후 투자 결정을 내리는 것을 권장합니다.
-
+**종목 추가** — `backend/data/fetcher.py`의 `TICKERS`에 yfinance 심볼 추가
 
