@@ -35,12 +35,10 @@ RISKDOC는 **통계 모델(GJR-GARCH)** 로 주가 변동성과 **VaR(최대 예
 
 ## 3. 화면 구성
 
-```
 
 
-<img width="1280" height="720" alt="RISKDOC_메인화면 상세" src="https://github.com/user-attachments/assets/d50d1359-493a-4db4-8acb-ae1f406b8291" />
+<img width="1280" height="720" alt="RISKDOC_메인화면 상세" src="https://github.com/user-attachments/assets/d4fc8b0e-4120-4897-89d9-7ac67b8a0127" />
 
-```
 
 ### 3.1 사이드바 설정
 
