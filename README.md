@@ -1,29 +1,20 @@
 # RISKDOC
 
-**통계·AI 모델 기반 일별 금융 자산 리스크 관리 플랫폼**
+### **통계·AI 모델 기반 일별 금융 자산 리스크 관리 플랫폼**
 
 GJR-GARCH와 Student-t VaR/ES로 일별 리스크를 산출하고, Streamlit 대시보드와 Gemini 챗봇으로 개인 투자자가 이해하기 쉽게 제공하는 오픈소스 웹 서비스입니다.
 
 > ⚠️ 본 서비스는 **의사결정 보조 도구**이며 투자 손실에 대한 책임은 이용자 본인에게 있습니다.  
-> VaR·ES 수치는 통계 모델이 산출하며, 챗봇(Gemini)은 해석 보조에만 사용됩니다.
 
----
+
 
 ## 시연 영상
 
 https://github.com/user-attachments/assets/eeea2524-5384-4876-a514-6429bf1ae8a8
 
----
-## 문서
 
 
-| 문서                                                 | 설명      |
-| -------------------------------------------------- | ------- |
-| [docs/USER_GUIDE.md](docs/USER_GUIDE.md)           | 사용자 가이드 |
-| [docs/DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md) | 개발자 가이드 |
-| [docs/최종보고서.md](docs/최종보고서.md)                     | 최종 보고서  |
 
----
 ## 주요 기능
 
 
@@ -156,12 +147,11 @@ app.py → 차트 · AI 리포트 · risk_ranking (TOP 3) · Gemini 챗봇
 | 브랜치           | 용도       |
 | ------------- | -------- |
 | `main`        | 최종 배포    |
-| `valid`       | 백엔드 작업   |
-| `valid_front` | 프론트엔드 작업 |
-| `dev`         | CI 트리거   |
+| `backend`       | 백엔드 작업   |
+| `UI` | 프론트엔드 작업 |
 
 
-`valid` 또는 `valid_front`에서 작업 후 `main`으로 merge합니다.
+`backend` 또는 `UI`에서 작업 후 `main`으로 merge합니다.
 
 ---
 
@@ -169,3 +159,14 @@ app.py → 차트 · AI 리포트 · risk_ranking (TOP 3) · Gemini 챗봇
 
 **종목 추가** — `backend/data/fetcher.py`의 `TICKERS`에 yfinance 심볼 추가
 
+
+## 더보기
+
+### 사용자 가이드
+[docs/USER_GUIDE.md](docs/USER_GUIDE.md)           
+
+### 개발자 가이드
+[docs/DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md) 
+
+### 상세 보고서
+[docs/최종보고서.md](docs/최종보고서.md)      
