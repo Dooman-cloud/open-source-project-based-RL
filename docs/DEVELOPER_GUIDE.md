@@ -161,7 +161,7 @@ $r_t = \ln(P_t / P_{t-1})$ — `fetcher.py`에서 계산.
 
 ### 5.2 GJR-GARCH(1,1)
 
-$\sigma_t^2 = \omega + \alpha \varepsilon_{t-1}^2 + \gamma I_{t-1}\varepsilon_{t-1}^2 + \beta\sigma_{t-1}^2$
+$$\sigma_t^2 = \omega + \alpha \varepsilon_{t-1}^2 + \gamma I_{t-1}\varepsilon_{t-1}^2 + \beta\sigma_{t-1}^2$$
 
 - `arch_model(..., p=1, o=1, q=1, dist="t")`
 - 수익률 ×100 피팅 후 σ ÷100 복원
@@ -169,7 +169,7 @@ $\sigma_t^2 = \omega + \alpha \varepsilon_{t-1}^2 + \gamma I_{t-1}\varepsilon_{t
 
 ### 5.3 VaR / ES
 
-$\text{VaR}*t = z*\alpha \cdot \sigma_t$, $z_\alpha = F_t^{-1}(\alpha \mid \nu)$
+$$\text{VaR}*t = z*\alpha \cdot \sigma_t, \quad z_\alpha = F_t^{-1}(\alpha \mid \nu)$$
 
 - `var_today` = $z_\alpha \times$ `forecast_volatility`
 - `var_amount` = `var_today` × `investment`
